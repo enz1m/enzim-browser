@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>Browser functional fixture</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iI2E3OGJmYSIvPjxwYXRoIGQ9Ik0yMiA5SDEwdjE0aDEyTTEwIDE2aDEwIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMyIvPjwvc3ZnPg==">
+<style>body{font:18px sans-serif;margin:48px;background:#f6f7fa;color:#17243b}input,select,button{font:inherit;padding:10px;margin:8px}section{margin:22px 0}a{color:#4359ad}</style>
+<h1>enzim Browser functional fixture</h1>
+<p>Real WPE content. Keyboard input, dropdowns, file selection, dialogs and links.</p>
+<section><label>Text <input id="text" placeholder="Type here"></label><input type="password" placeholder="Password"></section>
+<section><label>Choose <select id="choice"><option>First option</option><option>Second option</option><option>Third option</option></select></label><input type="file"></section>
+<section><button onclick="alert('A real WebKit alert')">Alert</button><button onclick="document.getElementById('answer').textContent=confirm('Continue?')">Confirm</button><button onclick="document.getElementById('answer').textContent=prompt('Your name','Browser')">Prompt</button><span id="answer"></span></section>
+<section><a href="https://example.com" target="_blank">Open example.com in a new tab</a></section>
+<p>Select this sentence and use the page context menu to copy it.</p>
+<p>Search needle. Another needle. Last needle.</p>
+<div style="height:900px"></div><p>End of scrolling fixture.</p>
+<script>
+document.getElementById('text').addEventListener('input',e=>document.title='Fixture input: '+e.target.value);
+document.getElementById('choice').addEventListener('change',e=>document.title='Fixture choice: '+e.target.value);
+document.querySelector('input[type=file]').addEventListener('change',e=>document.title='Fixture files: '+e.target.files.length);
+</script>

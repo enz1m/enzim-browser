@@ -1,0 +1,5 @@
+resources/filters/*.txt -whitespace
+# Preserve pinned third-party source bytes for reproducible scriptlet builds.
+resources/filters/scriptlet-source/** -whitespace
+assets/connectors/bitwarden/LICENSE.txt -whitespace
+tests/fixtures/*.pdf binary

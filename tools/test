@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""Run browser checks in a disposable profile under the shared build limits."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+root = Path(__file__).resolve().parents[1]
+env = os.environ.copy()
+env['CARGO_BUILD_JOBS'] = '1'
+with tempfile.TemporaryDirectory(prefix='enzim-browser-tests-') as scratch:
+    for variable, leaf in [('XDG_CONFIG_HOME', 'config'), ('XDG_DATA_HOME', 'data'), ('XDG_CACHE_HOME', 'cache')]:
+        path = Path(scratch) / leaf
+        path.mkdir(mode=0o700)
+        env[variable] = str(path)
+    env['ENZIM_BROWSER_TEST_PROFILE'] = str(Path(scratch) / 'unit-session')
+    result = subprocess.run([
+        'systemd-run', '--user', '--scope', '-p', 'MemoryMax=3G', '-p', 'MemorySwapMax=0', '--',
+        'cargo', 'test', '--offline', '--locked', '--bin', 'enzim-browser', *sys.argv[1:],
+    ], cwd=root, env=env)
+raise SystemExit(result.returncode)

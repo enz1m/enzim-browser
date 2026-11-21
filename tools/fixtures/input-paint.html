@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Input paint fixture</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px sans-serif; margin: 24px; }
+  button { position: fixed; left: 40px; top: 100px; width: 240px; height: 60px; }
+  #patch { position: fixed; left: 40px; top: 200px; width: 240px; height: 60px; background: red; }
+  #thumb { width: 16px; height: 16px; background: white; }
+</style>
+<p>Hold the button, then release without moving. The patch must turn green and the thumb move right.</p>
+<button id="control">Press, hold, then release</button>
+<div id="patch"><div id="thumb"></div></div>
+<script>
+  const theme = new URLSearchParams(location.search).get('theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.style.colorScheme = theme;
+  const patch = document.querySelector('#patch');
+  const thumb = document.querySelector('#thumb');
+  const control = document.querySelector('#control');
+  control.onpointerdown = () => {
+    patch.style.background = 'red';
+    thumb.style.transform = 'translateX(0)';
+  };
+  control.onpointerup = () => {
+    patch.style.background = 'lime';
+    thumb.style.transform = 'translateX(224px)';
+  };
+</script>

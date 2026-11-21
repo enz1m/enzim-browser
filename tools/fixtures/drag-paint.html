@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drag paint fixture</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px sans-serif; margin: 8px; }
+  #track { position: fixed; left: 40px; top: 100px; width: min(500px, calc(100vw - 80px)); height: 50px; background: #444; touch-action: none; }
+  #thumb { position: absolute; left: 0; width: 16px; height: 50px; background: lime; filter: drop-shadow(0 0 1px rgba(0,0,0,.8)); pointer-events: none; }
+</style>
+<p>Hold and drag the green thumb. It must follow before release.</p>
+<div id="track"><div id="thumb"></div></div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const theme = params.get('theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.style.colorScheme = theme;
+  const track = document.querySelector('#track');
+  const thumb = document.querySelector('#thumb');
+  if (params.get('filter') === 'off') thumb.style.filter = 'none';
+  function move(event) {
+    const bounds = track.getBoundingClientRect();
+    const x = Math.max(0, Math.min(bounds.width - 16, event.clientX - bounds.left - 8));
+    thumb.style.left = `${x}px`;
+  }
+  track.onmousedown = event => {
+    event.preventDefault();
+    move(event);
+    document.onmousemove = move;
+    document.onmouseup = event => {
+      move(event);
+      document.onmousemove = null;
+      document.onmouseup = null;
+    };
+  };
+</script>

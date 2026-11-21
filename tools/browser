@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Launch enzim Browser with the prepared WPE runtime."""
+import argparse,hashlib,json,os,subprocess,sys
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1]
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('targets',nargs='*',metavar='FILE_OR_URI')
+p.add_argument('--new-window',action='store_true')
+p.add_argument('--private-window',action='store_true')
+profiles=p.add_mutually_exclusive_group()
+profiles.add_argument('-P',nargs='?',const=True,dest='profile_choice',metavar='PROFILE',help='Choose a profile, or open its name directly')
+profiles.add_argument('--profile',metavar='NAME',help='Open an existing profile')
+profiles.add_argument('--create-profile',metavar='NAME',help='Create and open an isolated profile')
+p.add_argument('--skip-welcome',action='store_true',help=argparse.SUPPRESS)
+p.add_argument('--binary',type=Path)
+p.add_argument('--memory-max',help='Optional systemd memory ceiling, such as 3G, for diagnostics')
+p.add_argument('--runtime',type=Path,default=ROOT/json.loads((ROOT/'DEPENDENCIES.json').read_text())['native_runtime']['path'])
+a=p.parse_intermixed_args()
+if a.binary is None:
+    target=json.loads(subprocess.check_output(
+        ['cargo','metadata','--offline','--locked','--no-deps','--format-version=1'],
+        cwd=ROOT))['target_directory']
+    a.binary=Path(target)/'debug/enzim-browser'
+if not a.binary.is_file():p.error('Build first with tools/build')
+for name in ('ENZUI_PROBE_TRUSTED_LOCAL','ENZUI_PROBE_URL'):os.environ.pop(name,None)
+metadata=json.loads((ROOT/'DEPENDENCIES.json').read_text())
+manifest=json.loads((a.runtime/'source-runtime.json').read_text())
+source=manifest['source']['source_commit']
+known=[metadata['native_runtime'],*metadata.get('runtime_candidates',[])]
+encrypted=any(entry.get('source_commit')==source and entry.get('encrypted_media',False) for entry in known)
+os.environ['ENZIM_WPE_ENCRYPTED_MEDIA']='1' if encrypted else '0'
+os.environ['ENZIM_WPE_RUNTIME_SOURCE']=source
+tool=ROOT/metadata['webkit']['path']/'tools/source_runtime.py'
+cmd=['systemd-run','--user','--scope']
+if a.memory_max:cmd+=['-p','MemoryMax='+a.memory_max,'-p','MemorySwapMax=0']
+runtime_arguments=['--directory',str(a.runtime)]
+if source == metadata['native_runtime']['source_commit'] and metadata['native_runtime'].get('source_pin'):
+    source_pin=ROOT/metadata['native_runtime']['source_pin']
+    if hashlib.sha256(source_pin.read_bytes()).hexdigest()!=metadata['native_runtime']['source_pin_sha256']:
+        p.error('Reviewed browser source pin changed')
+    runtime_arguments+=['--source-pin',str(source_pin)]
+targets=[]
+for target in a.targets:
+    path=Path(target).expanduser()
+    uri=":" in target.split("/",1)[0]
+    local=not uri and (path.is_absolute() or target.startswith(("./","../","~/")) or path.is_file() or path.suffix.lower() in {".html",".htm",".xhtml",".pdf",".txt",".xml",".json",".svg",".png",".jpg",".jpeg",".webp",".gif",".avif",".mp4",".webm",".ogg",".mp3",".flac",".wav"})
+    targets.append(path.absolute().as_uri() if local else target)
+cmd+=['--',sys.executable,str(tool),*runtime_arguments,'run','--',str(a.binary),'--browser',*(targets or [''])]
+if a.new_window:cmd.append('--new-window')
+if a.private_window:cmd.append('--private-window')
+if a.profile_choice is True:cmd.append('-P')
+elif a.profile_choice is not None:cmd+=['-P',a.profile_choice]
+elif a.profile is not None:cmd+=['--profile',a.profile]
+elif a.create_profile is not None:cmd+=['--create-profile',a.create_profile]
+if a.skip_welcome:cmd.append('--skip-welcome')
+os.execvp(cmd[0],cmd)

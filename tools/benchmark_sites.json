@@ -1,0 +1,13 @@
+[
+  {"name": "Google", "url": "https://www.google.com/", "title": "Google"},
+  {"name": "YouTube", "url": "https://www.youtube.com/", "title": "YouTube"},
+  {"name": "Wikipedia", "url": "https://en.wikipedia.org/wiki/Artificial_intelligence", "title": "Artificial intelligence"},
+  {"name": "Bing", "url": "https://www.bing.com/", "title": "Bing"},
+  {"name": "CNN", "url": "https://edition.cnn.com/", "title": "CNN"},
+  {"name": "BBC", "url": "https://www.bbc.com/news", "title": "BBC"},
+  {"name": "DuckDuckGo", "url": "https://duckduckgo.com/", "title": "DuckDuckGo"},
+  {"name": "GitHub", "url": "https://github.com/rust-lang/rust", "title": "rust-lang/rust"},
+  {"name": "MDN", "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Grid_layout", "title": "Grid"},
+  {"name": "Guardian", "url": "https://www.theguardian.com/international", "title": "Guardian"},
+  {"name": "Apple", "url": "https://www.apple.com/", "title": "Apple"}
+]

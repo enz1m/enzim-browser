@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+export CARGO_BUILD_JOBS=1
+python3 tools/prepare_bitwarden.py --offline --check
+exec systemd-run --user --scope -p MemoryMax=3G -p MemorySwapMax=0 -- cargo build --offline --locked --bin enzim-browser "$@"

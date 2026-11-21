@@ -1,0 +1,41 @@
+#!/bin/bash
+# Runs KWin (Plasma's compositor) on a virtual output in a container, as a desk
+# that needs no screen: its Wayland socket is shared with this machine, so a
+# browser, or another compositor nested in it, runs here and draws there.
+#
+#   tools/glass_desk/kwin start [WIDTH HEIGHT]   prints the socket to use as WAYLAND_DISPLAY
+#   tools/glass_desk/kwin shot OUT.png           captures the output
+#   tools/glass_desk/kwin stop
+#
+# Needs Docker and a render node at /dev/dri/renderD128. Files are kept under
+# GLASS_DESK (default ~/.cache/enz-glass-desk), outside the repository.
+set -euo pipefail
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+desk=${GLASS_DESK:-$HOME/.cache/enz-glass-desk}
+name=enz-glass-kwin
+case ${1:-} in
+start)
+    docker image inspect $name:2 >/dev/null 2>&1 || docker build -q -t $name:2 "$here" >/dev/null
+    docker rm -f $name >/dev/null 2>&1 || true
+    rm -rf "${desk:?}/run"; mkdir -p -m 700 "$desk/run"
+    docker run -d --name $name --user "$(id -u):$(id -g)" --device /dev/dri/renderD128 \
+        -e XDG_RUNTIME_DIR=/run/desk -e KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1 -e HOME=/tmp/home \
+        -v "$desk/run:/run/desk" -v "$here:/tools:ro" -v "$desk:/out" $name:2 bash -c '
+            mkdir -p /tmp/home
+            # The packaged binary carries a file capability a container does not grant.
+            cp /usr/bin/kwin_wayland /tmp/kwin_wayland
+            dbus-run-session -- bash -c "echo \$DBUS_SESSION_BUS_ADDRESS > /run/desk/bus-address; \
+                exec /tmp/kwin_wayland --virtual --width '"${2:-1500}"' --height '"${3:-940}"' \
+                --socket wayland-kde --no-lockscreen --no-global-shortcuts"' >/dev/null
+    for _ in $(seq 1 40); do [[ -S $desk/run/wayland-kde ]] && break; sleep 0.25; done
+    [[ -S $desk/run/wayland-kde ]] || { docker logs $name | tail -5 >&2; exit 1; }
+    echo "$desk/run/wayland-kde"
+    ;;
+shot)
+    out=$(realpath "${2:?shot OUT.png}")
+    docker exec $name bash -c 'export DBUS_SESSION_BUS_ADDRESS=$(cat /run/desk/bus-address); python3 /tools/capture.py /out/shot.png' >/dev/null
+    mv "$desk/shot.png" "$out"
+    ;;
+stop) docker rm -f $name >/dev/null ;;
+*) sed -n 2,12p "$0" >&2; exit 2 ;;
+esac

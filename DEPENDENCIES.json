@@ -1,0 +1,41 @@
+{
+  "artifacts_directory": "../../enz_browser-deps",
+  "framework": {
+    "revision": "7926bbac9e3c9a9ca2992b954e7a0252f131aeab",
+    "repository": "https://github.com/enz1m/enzui.git",
+    "branch": "main"
+  },
+  "iced": {
+    "revision": "e36b07b591661fdb666088fc943cc0b927a2367b",
+    "repository": "https://github.com/enz1m/enzim-iced.git",
+    "branch": "enzim"
+  },
+  "winit": {
+    "revision": "40eeb41f8637ef1620afa377ba006874224b6d65",
+    "repository": "https://github.com/enz1m/enzim-winit.git"
+  },
+  "webkit": {
+    "revision": "7d6bf4f79673b853d74e238ed3df58476cc76968",
+    "path": "../../enzui-webkit",
+    "repository": "https://github.com/enz1m/enzim-webkit-rs.git",
+    "branch": "main"
+  },
+  "native_runtime": {
+    "release": "https://github.com/enz1m/enzim-webkit/releases/tag/v0.1.1",
+    "path": "../../enz_browser-deps/enzim-webkit-runtime-v0.1.1-archlinux-x86_64",
+    "source_commit": "d8e67db4a0c8e0e09146871d0b06d0aa91625a0f",
+    "manifest": "../../enz_browser-deps/enzim-webkit-runtime-v0.1.1-archlinux-x86_64/source-runtime.json",
+    "encrypted_media": false,
+    "source_pin": "../../enzui-webkit/runtime/engine.json",
+    "source_pin_sha256": "87ce3d7bf7647879f909d01d405496eef656d9afe06f99b46bfde69636a6f244"
+  },
+  "bundled_connectors": {
+    "bitwarden": {
+      "manifest": "assets/connectors/bitwarden.json",
+      "prepare": "tools/prepare_bitwarden.py",
+      "notice": "assets/connectors/bitwarden/NOTICE.md",
+      "install": "PREFIX/libexec/enzim-browser/bitwarden",
+      "note": "Separate pinned OSS executable/source/licenses; executable and archives stay outside Git. Default runtime resolution never uses PATH."
+    }
+  }
+}

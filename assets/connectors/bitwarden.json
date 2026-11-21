@@ -1,0 +1,17 @@
+{
+  "version": "2026.10.1",
+  "tag": "cli-v2026.10.1",
+  "asset_url": "https://github.com/bitwarden/clients/releases/download/cli-v2026.10.1/bw-oss-linux-2026.10.1.zip",
+  "asset_sha256": "53384064abe7555039281bc2e6fe51846368ba60db9b7ba89de183409d7f6738",
+  "asset_size": 45802496,
+  "binary_sha256": "aa112cbff83471ef4fce76b6039f0ff5dc1558b886903c9bf13046d952d88510",
+  "source_url": "https://codeload.github.com/bitwarden/clients/tar.gz/91214c3b978edb5496a32a946451960fe7d44531",
+  "platform": "linux-x86_64",
+  "license": "GPL-3.0",
+  "provenance": "https://api.github.com/repos/bitwarden/clients/releases/tags/cli-v2026.10.1",
+  "binary_size": 143321507,
+  "development_directory": "../../enz_browser-deps/bitwarden-2026.10.1/linux-x86_64",
+  "source_commit": "91214c3b978edb5496a32a946451960fe7d44531",
+  "source_sha256": "40980212769c9fa3a74ab04d0017ba6336433f2323b490aadfebe97f83d86ddf",
+  "source_size": 53216443
+}

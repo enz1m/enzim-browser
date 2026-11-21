@@ -1,0 +1,35 @@
+# Local builds and generated artifacts. Cargo.lock is intentionally tracked.
+/target/
+/work
+/WORKLOG.md
+/vendor/
+/dist/
+/artifacts/
+/coverage/
+/capture.env
+/profiles/
+/downloads/
+/screenshots/
+
+# Credentials and local environment configuration.
+.env
+.env.*
+!.env.example
+
+# Python environments and caches.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Runtime diagnostics and editor files.
+*.log
+*.profraw
+*.profdata
+perf.data
+perf.data.*
+*.swp
+*.swo
+*~
+.DS_Store

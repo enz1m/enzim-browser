@@ -1,0 +1,49 @@
+<!doctype html><meta charset=utf-8><title>pending</title>
+<style>.box{display:block;width:10px;height:10px}</style>
+<body>
+<div id=simple class=box></div>
+<div id=idhost class=box></div>
+<div id=anc class=box><div id=desc class="box item-container-obpd"></div></div>
+<div id=par class=box><div id=child class="box pbl"></div></div>
+<div id=idpar class=box><div id=mgb class=box></div></div>
+<div id=attr class=box></div>
+<div id=comp class="box Ad"></div>
+<div id=anc2 class="box ob_container"><div id=late class=box></div></div>
+<div id=host class=box></div>
+<div id=static class="box ADBox"></div>
+<script>
+function run() {
+// Each check resolves style before the change, so a missed invalidation leaves the old value.
+const shown = e => getComputedStyle(e).display !== 'none';
+const $ = id => document.getElementById(id);
+const bits = [];
+const check = (name, element, change, undo) => {
+  const before = shown(element); change(); const hidden = !shown(element); undo(); const restored = shown(element);
+  bits.push(name + ':' + (before ? 1 : 0) + (hidden ? 1 : 0) + (restored ? 1 : 0));
+};
+check('class', $('simple'), () => $('simple').classList.add('ADBox'), () => $('simple').classList.remove('ADBox'));
+check('id', $('idhost'), () => { $('idhost').id = 'AC_ad'; }, () => { document.getElementById('AC_ad').id = 'idhost'; });
+check('descendant', $('desc'), () => $('anc').classList.add('ob_container'), () => $('anc').classList.remove('ob_container'));
+check('child', $('child'), () => $('par').classList.add('banner-img'), () => $('par').classList.remove('banner-img'));
+check('idchild', $('mgb'), () => { $('idpar').id = 'mgb-container'; }, () => { document.getElementById('mgb-container').id = 'idpar'; });
+check('attribute', $('attr'), () => $('attr').setAttribute('data-block-type', 'ad'), () => $('attr').removeAttribute('data-block-type'));
+check('compound', $('comp'), () => $('comp').classList.add('Leaderboard'), () => $('comp').classList.remove('Leaderboard'));
+check('subject', $('late'), () => $('late').classList.add('item-container-obpd'), () => $('late').classList.remove('item-container-obpd'));
+// The same rules inside a shadow tree, which shares the document's user style.
+const root = $('host').attachShadow({mode: 'open'});
+root.innerHTML = '<style>.box{display:block;width:10px;height:10px}</style><div id=s class=box></div><div id=sa class=box><div id=sd class="box item-container-obpd"></div></div>';
+const s = root.getElementById('s'), sa = root.getElementById('sa'), sd = root.getElementById('sd');
+check('shadow-class', s, () => s.classList.add('ADBox'), () => s.classList.remove('ADBox'));
+check('shadow-descendant', sd, () => sa.classList.add('ob_container'), () => sa.classList.remove('ob_container'));
+// Many class changes in one go, then one style read.
+const many = [];
+for (let i = 0; i < 40; ++i) { const e = document.createElement('div'); e.className = 'box'; document.body.append(e); many.push(e); }
+const allShown = many.every(shown); many.forEach(e => e.classList.add('ADBox')); const allHidden = !many.some(shown);
+many.forEach(e => e.classList.remove('ADBox')); const allBack = many.every(shown);
+bits.push('batch:' + (allShown ? 1 : 0) + (allHidden ? 1 : 0) + (allBack ? 1 : 0));
+bits.push('static:' + (shown($('static')) ? 'shown' : 'hidden'));
+document.title = 'RESULT ' + bits.join(' ');
+}
+const delay = Number(new URLSearchParams(location.search).get('delay') || 0);
+if (delay) setTimeout(run, delay); else run();
+</script>

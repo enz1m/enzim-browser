@@ -1,0 +1,7 @@
+<!doctype html><title>Instant scroll latency control</title><style>html{scrollbar-width:none}body{margin:0;font:24px sans-serif}section{height:1000px;padding:20px;box-sizing:border-box;background:repeating-linear-gradient(#fff 0px,#fff 48px,#d6e7fa 48px,#d6e7fa 96px)}section:nth-child(even){background:repeating-linear-gradient(#e1f7e9 0px,#e1f7e9 48px,#fff 48px,#fff 96px)}</style><body><script>
+for (let n = 0; n < 80; ++n) {
+  const section = document.createElement('section');
+  section.textContent = `Scroll segment ${n}`;
+  document.body.append(section);
+}
+addEventListener('wheel',e=>{e.preventDefault();scrollBy({top:e.deltaY*(e.deltaMode===1?48:1),left:e.deltaX,behavior:'instant'})},{passive:false});</script>

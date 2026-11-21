@@ -1,0 +1,3 @@
+||youtube.com/pagead/$domain=youtube.com
+||youtube.com/youtubei/v1/player/ad_break$domain=youtube.com
+*_ad_$media,domain=youtube.com,third-party

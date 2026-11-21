@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=enzim Browser
+Comment=Explore the web with enzUI
+Exec=enzim-browser-launch %U
+Icon=org.enzim.Browser
+Terminal=false
+StartupNotify=true
+StartupWMClass=org.enzim.Browser
+Categories=Network;WebBrowser;
+Keywords=browser;web;internet;
+MimeType=text/html;application/xhtml+xml;application/xml;text/xml;application/rdf+xml;application/rss+xml;application/atom+xml;application/json;text/plain;application/pdf;image/apng;image/avif;image/bmp;image/gif;image/jpeg;image/png;image/svg+xml;image/webp;image/vnd.microsoft.icon;image/x-icon;audio/flac;audio/mpeg;audio/ogg;audio/wav;audio/x-wav;audio/webm;video/mp4;video/ogg;video/webm;x-scheme-handler/http;x-scheme-handler/https;
+TryExec=enzim-browser-launch

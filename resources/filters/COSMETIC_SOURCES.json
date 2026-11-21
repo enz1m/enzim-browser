@@ -1,0 +1,121 @@
+[
+  {
+    "file": "ublock.txt",
+    "repository": "https://github.com/uBlockOrigin/uAssets",
+    "commit": "bfb1b38c00cf0b5b9cfad83f32719fd5934c5d32",
+    "path": "filters/filters.txt",
+    "sha256": "b5b0b6b7b567afb2d5e2447f0712d74835c5a94fd3d0d24aebeb9bd3fa74b5e5",
+    "bytes": 2364106,
+    "inputs": [
+      {
+        "path": "filters/filters-2020.txt",
+        "sha256": "7b0e9de801147e997c6e5be0ba3af3a865a6613fccb9a55f613ac66f4c1e087a",
+        "bytes": 133221
+      },
+      {
+        "path": "filters/filters-2021.txt",
+        "sha256": "f8e8dbea4f3f516ff1844528ab48031ffc348f90eca40aef5bfe1c0840000f89",
+        "bytes": 166671
+      },
+      {
+        "path": "filters/filters-2022.txt",
+        "sha256": "3a752f40c39d24df885922496b4a97d3f8a642e8af21ad8694cb661b19af8e70",
+        "bytes": 157001
+      },
+      {
+        "path": "filters/filters-2023.txt",
+        "sha256": "8ec7d1e6aa157831588601d11dee1d46a60c53b81985e16904f91dd95a92d53a",
+        "bytes": 214253
+      },
+      {
+        "path": "filters/filters-2024.txt",
+        "sha256": "36d34d0b29a107b206986ea546de8b07d483e7ec5fd53f6140ebe3a68f38495a",
+        "bytes": 231291
+      },
+      {
+        "path": "filters/filters-2025.txt",
+        "sha256": "a46cef88e9d9db3d1711d2ae477a0becca01c2259f1200d3a475b6fcf2d626aa",
+        "bytes": 169088
+      },
+      {
+        "path": "filters/filters-2026.txt",
+        "sha256": "f60124283ac54c1280f535e9aa3b42674049372e7463a83d67357169d59b6034",
+        "bytes": 102155
+      },
+      {
+        "path": "filters/filters-general.txt",
+        "sha256": "909a2f5526d0ffa31ca99672d170aca85b6b167c56338bbf7b5d334d8672bdc2",
+        "bytes": 709715
+      },
+      {
+        "path": "filters/filters.txt",
+        "sha256": "118d32ee30089ed3b8cecb30e63eb884bfd138dabd10d51fb3edcc8ef8acdad0",
+        "bytes": 471693
+      },
+      {
+        "path": "filters/ubo-link-shorteners.txt",
+        "sha256": "fb40dc77a0eb3831418f36603521d8bcd64d340ed7a8ff0514760ef76956f899",
+        "bytes": 121244
+      }
+    ],
+    "capabilities": {
+      "env_safari": true,
+      "cap_html_filtering": false,
+      "cap_ipaddress": false,
+      "env_firefox": false,
+      "env_chromium": false,
+      "env_mobile": false,
+      "env_mv3": false,
+      "ext_ubol": false
+    }
+  },
+  {
+    "file": "ublock-quick-fixes.txt",
+    "repository": "https://github.com/uBlockOrigin/uAssets",
+    "commit": "bfb1b38c00cf0b5b9cfad83f32719fd5934c5d32",
+    "path": "filters/quick-fixes.txt",
+    "sha256": "881cba0b92d83fe3a7d208a55402e3d3e69f83999a5460f50a75a0e370a02451",
+    "bytes": 83844,
+    "inputs": [
+      {
+        "path": "filters/quick-fixes.txt",
+        "sha256": "ac5e426272ed0f5b713f6f876b25f72b3ef86d08aa0b7141adab2f263e8ac26f",
+        "bytes": 91449
+      }
+    ],
+    "capabilities": {
+      "env_safari": true,
+      "cap_html_filtering": false,
+      "cap_ipaddress": false,
+      "env_firefox": false,
+      "env_chromium": false,
+      "env_mobile": false,
+      "env_mv3": false,
+      "ext_ubol": false
+    }
+  },
+  {
+    "file": "uassets-LICENSE",
+    "repository": "https://github.com/uBlockOrigin/uAssets",
+    "commit": "bfb1b38c00cf0b5b9cfad83f32719fd5934c5d32",
+    "path": "LICENSE",
+    "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+    "bytes": 35141
+  },
+  {
+    "file": "scriptlets.json",
+    "repository": "https://github.com/gorhill/uBlock",
+    "commit": "aaefbdb76ed367da08d8aec193d6e8fa1b84485d",
+    "path": "src/js/resources/*.js",
+    "sha256": "6e09f51d4a47ba899ace2583cbb191891f8d478c19671440ef3706649c3332bf",
+    "bytes": 332219
+  },
+  {
+    "file": "ublock-LICENSE",
+    "repository": "https://github.com/gorhill/uBlock",
+    "commit": "aaefbdb76ed367da08d8aec193d6e8fa1b84485d",
+    "path": "LICENSE.txt",
+    "sha256": "e73d33841f942fa73aa5a63d4a6399cc39a29564db1dbca0915485842fcb236d",
+    "bytes": 35126
+  }
+]
