@@ -68,7 +68,7 @@ From a workspace directory, clone the browser and the SDK launch tools:
 ```sh
 git clone https://github.com/enz1m/enzim-browser.git apps/enzim-browser
 git clone https://github.com/enz1m/enzim-webkit-rs.git enzui-webkit
-git -C enzui-webkit checkout --detach 7d6bf4f79673b853d74e238ed3df58476cc76968
+git -C enzui-webkit checkout --detach c3cd494633c9edd491d71080ab00a3fa2629f40f
 ```
 
 [Verify and unpack the WebKit v0.1.1 archives](docs/development.md#prepare-the-native-runtime)

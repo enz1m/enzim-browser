@@ -1,7 +1,7 @@
 {
   "artifacts_directory": "../../enz_browser-deps",
   "framework": {
-    "revision": "7926bbac9e3c9a9ca2992b954e7a0252f131aeab",
+    "revision": "4d71081d58e26bd9f2678662bba78d6e51a9ea80",
     "repository": "https://github.com/enz1m/enzui.git",
     "branch": "main"
   },
@@ -15,7 +15,7 @@
     "repository": "https://github.com/enz1m/enzim-winit.git"
   },
   "webkit": {
-    "revision": "7d6bf4f79673b853d74e238ed3df58476cc76968",
+    "revision": "c3cd494633c9edd491d71080ab00a3fa2629f40f",
     "path": "../../enzui-webkit",
     "repository": "https://github.com/enz1m/enzim-webkit-rs.git",
     "branch": "main"

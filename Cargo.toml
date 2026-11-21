@@ -134,16 +134,16 @@ format_push_string = "warn"
 redundant_type_annotations = "warn"
 
 [workspace.dependencies]
-enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "7d6bf4f79673b853d74e238ed3df58476cc76968" }
-enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "7d6bf4f79673b853d74e238ed3df58476cc76968" }
-enzui-security = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
-enzui-clipboard-runtime = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab", default-features = false }
-enzui-services = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
-enzui-core = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
-enzui-theme = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
-enzui-widgets = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
-enzui-external-image = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
-enzui-agent = { git = "https://github.com/enz1m/enzui.git", rev = "7926bbac9e3c9a9ca2992b954e7a0252f131aeab" }
+enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "c3cd494633c9edd491d71080ab00a3fa2629f40f" }
+enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "c3cd494633c9edd491d71080ab00a3fa2629f40f" }
+enzui-security = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
+enzui-clipboard-runtime = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1", default-features = false }
+enzui-services = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
+enzui-core = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
+enzui-theme = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
+enzui-widgets = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
+enzui-external-image = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
+enzui-agent = { git = "https://github.com/enz1m/enzui.git", tag = "v0.3.0-alpha.1" }
 iced = { git = "https://github.com/enz1m/enzim-iced.git", rev = "e36b07b591661fdb666088fc943cc0b927a2367b", default-features = false, features = [
     "wgpu",
     "tiny-skia",
