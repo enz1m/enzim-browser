@@ -16,6 +16,7 @@ mod viewport_background;
 
 mod browser;
 mod diagnostic_log;
+mod download_activity;
 mod downloads;
 mod favicons;
 #[cfg(feature = "benchmark")]

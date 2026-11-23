@@ -36,6 +36,7 @@ iced = { workspace = true, features = ["x11", "wayland", "image-without-codecs"]
 iced_renderer = { git = "https://github.com/enz1m/enzim-iced.git", rev = "22ea94fc775a3de8d1c1a1905b51d09b236e4c3b", default-features = false, features = ["fira-sans"] }
 enzui-core = { workspace = true, features = ["accesskit", "portal-dbus", "notification-freedesktop", "activation-native-iced", "desktop-font-portal"] }
 enzui-security = { workspace = true }
+enzui-activity = { workspace = true }
 enzui-clipboard-runtime = { workspace = true }
 enzui-services = { workspace = true, features = ["secret-service"] }
 enzui-theme.workspace = true
@@ -137,6 +138,7 @@ redundant_type_annotations = "warn"
 enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "8c4b109e6c069134cd3a028500d75706dc4cb3da" }
 enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "8c4b109e6c069134cd3a028500d75706dc4cb3da" }
 enzui-security = { git = "https://github.com/enz1m/enzui.git", rev = "27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610" }
+enzui-activity = { git = "https://github.com/enz1m/enzui.git", rev = "27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610", default-features = false }
 enzui-clipboard-runtime = { git = "https://github.com/enz1m/enzui.git", rev = "27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610", default-features = false }
 enzui-services = { git = "https://github.com/enz1m/enzui.git", rev = "27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610" }
 enzui-core = { git = "https://github.com/enz1m/enzui.git", rev = "27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610" }

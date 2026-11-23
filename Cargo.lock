@@ -1228,6 +1228,7 @@ dependencies = [
  "csv-core",
  "curl",
  "data-encoding",
+ "enzui-activity",
  "enzui-agent",
  "enzui-clipboard-runtime",
  "enzui-core",
@@ -1260,6 +1261,17 @@ dependencies = [
  "wayland-protocols",
  "wayland-protocols-plasma",
  "zeroize",
+]
+
+[[package]]
+name = "enzui-activity"
+version = "0.3.0-alpha.1"
+source = "git+https://github.com/enz1m/enzui.git?rev=27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610#27d8e8bb1951713ff3c45d6b5a7cb4e2e782c610"
+dependencies = [
+ "getrandom 0.3.4",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

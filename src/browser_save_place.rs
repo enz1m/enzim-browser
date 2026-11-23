@@ -35,7 +35,8 @@ pub(crate) fn move_download(from: &Path, to: &Path) -> Result<(), String> {
 impl App {
     /// Asks about one download at a time, and sends the whole ones to the
     /// places chosen for them.
-    pub(super) fn settle_download_places(&mut self) {
+    pub(super) fn settle_download_places(&mut self) -> bool {
+        let mut changed = false;
         self.browser.downloads.note_places(
             self.browser.saved.ask_download_place,
             !self.browser.saved.external_pdfs,
@@ -56,6 +57,7 @@ impl App {
                 // Nothing to ask with: it stays in the downloads folder.
                 Err(error) => {
                     self.set_download_place(id, Place::Folder);
+                    changed = true;
                     self.browser
                         .toasts
                         .error("downloads", format!("Could not open chooser: {error:?}"));
@@ -63,11 +65,13 @@ impl App {
             }
         }
         for (id, from, to) in self.browser.downloads.ready_to_move() {
+            changed = true;
             self.pending_tasks.push(Task::perform(
                 async move { move_download(&from, &to).map(|()| to) },
                 move |result| c(Command::Download(DownloadCommand::Placed(id, result))),
             ));
         }
+        changed
     }
 
     fn set_download_place(&mut self, id: u64, place: Place) {

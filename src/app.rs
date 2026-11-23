@@ -27,6 +27,7 @@ pub(crate) struct App {
     pub(crate) local_files: crate::desktop_files::Sources,
     pub(crate) pending_pdf: Option<std::path::PathBuf>,
     pub(crate) browser: crate::browser::Browser,
+    pub(crate) download_activity: crate::download_activity::DownloadActivity,
     pub(crate) renderer_ready: bool,
     pub(crate) web_system_font_ready: bool,
     pub(crate) web_system_font: Option<String>,
@@ -65,6 +66,7 @@ impl App {
             )
             .0,
             browser,
+            download_activity: crate::download_activity::DownloadActivity::default(),
             pending_tasks: Vec::new(),
             pending_pdf: None,
             local_files: crate::desktop_files::Sources::default(),

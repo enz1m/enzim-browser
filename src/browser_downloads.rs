@@ -36,6 +36,7 @@ impl App {
             .find(|h| h.borrow().live_view == Some(owner))
     }
     pub(crate) fn retain_download_host(&mut self, host: RefCell<WebViewService>) {
+        let mut changed = false;
         {
             let mut service = host.borrow_mut();
             service.ingest_native();
@@ -43,6 +44,7 @@ impl App {
                 for event in &service.page_events {
                     if crate::downloads::is_event(event) {
                         self.browser.downloads.accept(owner, event);
+                        changed = true;
                     }
                 }
                 service
@@ -54,6 +56,10 @@ impl App {
         if owner.is_some_and(|owner| self.browser.downloads.owns_active(owner)) {
             host.borrow_mut().hide_view();
             self.browser.download_hosts.push(host);
+        }
+        if changed {
+            self.settle_download_places();
+            self.sync_download_activity();
         }
     }
     pub(super) fn sync_downloads(&mut self) {
@@ -140,7 +146,10 @@ impl App {
         if completed && !cfg!(test) {
             self.browser.save();
         }
-        self.settle_download_places();
+        let placement_changed = self.settle_download_places();
+        if changed || placement_changed {
+            self.sync_download_activity();
+        }
         for id in self.browser.downloads.ready_to_open() {
             self.pending_tasks
                 .push(Task::done(c(Command::Download(DownloadCommand::Open(id)))));
@@ -150,6 +159,12 @@ impl App {
         }
     }
     pub(super) fn download_command(&mut self, command: DownloadCommand) -> Task<Message> {
+        let task = self.reduce_download_command(command);
+        self.sync_download_activity();
+        task
+    }
+
+    fn reduce_download_command(&mut self, command: DownloadCommand) -> Task<Message> {
         match command {
             DownloadCommand::Context(id, point) => {
                 let Some(entry) = self
