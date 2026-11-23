@@ -20,6 +20,15 @@ fn main() {
     ] {
         writeln!(cargo, "cargo:rerun-if-changed={path}").expect("publish build dependency");
     }
+    writeln!(cargo, "cargo:rerun-if-env-changed=ENZIM_BROWSER_FLATPAK_BUILD")
+        .expect("publish Flatpak build dependency");
+    if env::var_os("ENZIM_BROWSER_FLATPAK_BUILD").is_some() {
+        writeln!(
+            cargo,
+            "cargo:rerun-if-changed=/usr/local/share/enzim-webkit/runtime.ini"
+        )
+        .expect("publish shared SDK dependency");
+    }
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("manifest directory"));
     let out = PathBuf::from(env::var_os("OUT_DIR").expect("build output directory"));
     fs::write(

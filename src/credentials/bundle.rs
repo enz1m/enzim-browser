@@ -17,6 +17,7 @@ struct Pin {
 }
 type Identity = (u64, u64, u64, i64, i64, i64, i64);
 static VERIFIED: OnceLock<Mutex<Option<(PathBuf, Identity)>>> = OnceLock::new();
+const FLATPAK_BITWARDEN: &str = "/app/libexec/enzim-browser/bitwarden/bw";
 
 fn identity(metadata: &fs::Metadata) -> Identity {
     (
@@ -87,9 +88,17 @@ fn verify(path: &Path, pin: &Pin) -> Result<PathBuf> {
         .metadata()
         .map_err(|_| "Could not inspect the bundled Bitwarden helper.".to_owned())?;
     let mode = metadata.permissions().mode();
+    // OSTree checkouts use hard links. The packaged helper must be on the
+    // read-only application mount and still match the pinned bytes.
+    let safe_links = if path == Path::new(FLATPAK_BITWARDEN) {
+        rustix::fs::fstatvfs(&file)
+            .is_ok_and(|mount| mount.f_flag.contains(rustix::fs::StatVfsMountFlags::RDONLY))
+    } else {
+        metadata.nlink() == 1
+    };
     if !metadata.is_file()
         || !owner_compatible(&metadata)
-        || metadata.nlink() != 1
+        || !safe_links
         || mode & 0o022 != 0
         || mode & 0o111 == 0
         || metadata.len() != pin.binary_size
@@ -135,6 +144,9 @@ fn verify(path: &Path, pin: &Pin) -> Result<PathBuf> {
 pub(super) fn bitwarden() -> Result<PathBuf> {
     let pin: Pin = serde_json::from_str(include_str!("../../assets/connectors/bitwarden.json"))
         .map_err(|_| "Invalid bundled Bitwarden version metadata.".to_owned())?;
+    if Path::new("/.flatpak-info").is_file() {
+        return verify(Path::new(FLATPAK_BITWARDEN), &pin);
+    }
     let executable = std::env::current_exe()
         .map_err(|_| "Could not locate this browser installation.".to_owned())?;
     let parent = executable

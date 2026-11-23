@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build native rule-only cache entries with the manifest-pinned WPE runtime."""
 import argparse
+import configparser
 import ctypes
 import hashlib
 import json
@@ -86,6 +87,15 @@ def main():
     parser.add_argument('--native', action='store_true')
     args = parser.parse_args()
     metadata = json.loads((ROOT / 'DEPENDENCIES.json').read_text())
+    if os.environ.get('ENZIM_BROWSER_FLATPAK_BUILD') == '1':
+        runtime = Path('/usr/local')
+        version = configparser.ConfigParser(interpolation=None)
+        with (runtime / 'share/enzim-webkit/runtime.ini').open() as descriptor:
+            version.read_file(descriptor)
+        if version['Runtime']['SourceCommit'] != metadata['native_runtime']['source_commit']:
+            raise ValueError('The Flatpak SDK does not match the Browser engine source pin')
+        compile_filters(args.output.resolve(), runtime)
+        return
     runtime = (ROOT / metadata['native_runtime']['path']).resolve()
     if args.native:
         compile_filters(args.output.resolve(), runtime)

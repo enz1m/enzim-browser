@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.enzim.Browser</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>enzim Browser</name>
+  <summary>Browse with flexible tabs and per-site privacy controls</summary>
+  <description>
+    <p>Browse with horizontal or vertical tabs, separate your work in profiles and containers, and control what individual sites can access. Capture or export whole pages and manage your downloads.</p>
+    <p>This is an alpha release for testing and feedback.</p>
+  </description>
+  <launchable type="desktop-id">org.enzim.Browser.desktop</launchable>
+  <developer id="dev.enzim"><name>enz1m</name></developer>
+  <url type="homepage">https://github.com/enz1m/enzim-browser</url>
+  <url type="bugtracker">https://github.com/enz1m/enzim-browser/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/enz1m/enzim-browser/v0.1.1/docs/screenshots/sidebar.webp</image>
+      <caption>Vertical tabs and favicon groups</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/enz1m/enzim-browser/v0.1.1/docs/screenshots/top-tabs.webp</image>
+      <caption>Horizontal tabs</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/enz1m/enzim-browser/v0.1.1/docs/screenshots/privacy.webp</image>
+      <caption>Per-site privacy controls</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.1" date="2026-11-23" type="development">
+      <description>
+        <p>First enzim Apps release. Arrange tabs across the top or in a sidebar, keep browsing separate with profiles and private windows, and manage content blocking and permissions by site.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -56,6 +56,19 @@ Click a screenshot to enlarge. The Assistant shows a sample conversation.
 
 See the [privacy and filtering guide](docs/PRIVACY-DESIGN.md) for details.
 
+## Install the Flatpak
+
+Add the enzim Apps remote and install Browser on an x86-64 Wayland desktop:
+
+```sh
+flatpak remote-add --user --if-not-exists enzimos https://flatpak.enzim.dev/enzimos.flatpakrepo
+flatpak install --user enzimos org.enzim.Browser
+```
+
+Flatpak installs the WebKit Platform from the same remote. Browser is an
+alpha release. See the [Flatpak build guide](docs/development.md#build-the-flatpak)
+if you need to rebuild the package.
+
 ## Build from source
 
 Use a Linux desktop with Wayland and a systemd user manager, Rust 1.95 or
@@ -68,7 +81,7 @@ From a workspace directory, clone the browser and the SDK launch tools:
 ```sh
 git clone https://github.com/enz1m/enzim-browser.git apps/enzim-browser
 git clone https://github.com/enz1m/enzim-webkit-rs.git enzui-webkit
-git -C enzui-webkit checkout --detach c3cd494633c9edd491d71080ab00a3fa2629f40f
+git -C enzui-webkit checkout --detach 8c4b109e6c069134cd3a028500d75706dc4cb3da
 ```
 
 [Verify and unpack the WebKit v0.1.1 archives](docs/development.md#prepare-the-native-runtime)

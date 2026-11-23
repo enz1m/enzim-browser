@@ -1,0 +1,50 @@
+{
+  "id": "org.enzim.Browser",
+  "runtime": "dev.enzim.WebKit.Platform",
+  "runtime-version": "26.08-1",
+  "sdk": "dev.enzim.WebKit.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "enzim-browser",
+  "finish-args": [
+    "--share=network",
+    "--socket=wayland",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--talk-name=org.freedesktop.secrets"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/browser/.cargo-home",
+      "CARGO_BUILD_JOBS": "1",
+      "CARGO_TARGET_DIR": "/run/build/browser/target",
+      "ENZIM_BROWSER_FLATPAK_BUILD": "1",
+      "LD_LIBRARY_PATH": "/usr/local/lib",
+      "PKG_CONFIG_PATH": "/usr/local/lib/pkgconfig:/app/lib/pkgconfig"
+    }
+  },
+  "modules": [
+    {
+      "name": "browser",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cargo build --locked --offline --bin enzim-browser --message-format=json > cargo-messages.jsonl",
+        "python3 packaging/flatpak/install-app.py --cargo-messages cargo-messages.jsonl --target enzim-browser",
+        "python3 tools/prepare_bitwarden.py --offline --bundle-dir packaging/flatpak/bitwarden --install-prefix /app",
+        "sed 's/enzim-browser-launch/enzim-browser/g' resources/org.enzim.Browser.desktop | install -Dm644 /dev/stdin /app/share/applications/org.enzim.Browser.desktop",
+        "install -Dm644 resources/org.enzim.Browser.svg /app/share/icons/hicolor/scalable/apps/org.enzim.Browser.svg",
+        "install -Dm644 packaging/flatpak/org.enzim.Browser.metainfo.xml /app/share/metainfo/org.enzim.Browser.metainfo.xml"
+      ],
+      "sources": [
+        {"type": "dir", "path": ".", "skip": [".git", ".flatpak-builder", "target", "work"]},
+        {"type": "archive", "url": "https://github.com/enz1m/enzim-browser/releases/download/v0.1.1/enzim-browser-offline-inputs-0.1.1.tar.xz", "sha256": "7d5fc5eaa02abe320f5ad77636ed468be90a15e6ce294a1e211f95ffdfc7bc16", "strip-components": 0},
+        {
+          "type": "file",
+          "url": "https://raw.githubusercontent.com/enz1m/enzim-winit/40eeb41f8637ef1620afa377ba006874224b6d65/wayland-protocols/xdg-session-management-v1.xml",
+          "sha256": "3674591ca8e68f76297c535e8edd6783d84b59086c38ebe08ff5ff1f2dec5bae",
+          "dest": "vendor/winit-0.30.13/wayland-protocols"
+        }
+      ]
+    }
+  ]
+}

@@ -57,6 +57,25 @@ Set `CARGO_TARGET_DIR` to reuse a compatible build cache. Build and test helpers
 use one compiler job, a 3 GiB memory cap, and zero swap through the systemd user
 manager.
 
+## Build the Flatpak
+
+Install the shared SDK and Platform from enzim Apps. The Rust compiler comes
+from the Freedesktop 26.08 SDK extension on Flathub.
+
+```sh
+flatpak remote-add --user --if-not-exists enzimos https://flatpak.enzim.dev/enzimos.flatpakrepo
+flatpak install --user enzimos dev.enzim.WebKit.Platform//26.08-1 dev.enzim.WebKit.Sdk//26.08-1
+flatpak install --user flathub org.freedesktop.Sdk.Extension.rust-stable//26.08
+systemd-run --user --scope -p MemoryMax=3G -p MemorySwapMax=0 -- \
+  flatpak-builder --user --jobs=1 --sandbox --disable-rofiles-fuse \
+    --repo=repo build-flatpak org.enzim.Browser.json
+```
+
+Use a tagged Browser checkout. The manifest verifies the release snapshot of the
+locked Rust sources and pinned connector assets before the offline build. The
+package installs its own credential guard and uses the shared Platform for the
+engine library and its subprocesses.
+
 ## Focused checks
 
 ```sh

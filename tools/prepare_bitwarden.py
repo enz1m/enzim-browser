@@ -68,6 +68,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-archive", type=Path)
+    parser.add_argument("--bundle-dir", type=Path, help="Use this directory for the pinned connector bundle")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--install-prefix", type=Path,
@@ -75,7 +76,7 @@ def main():
     args = parser.parse_args()
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "AMD64"):
         parser.error("This pinned helper package supports Linux x86_64.")
-    directory = (ROOT / PIN["development_directory"]).resolve()
+    directory = (args.bundle_dir or ROOT / PIN["development_directory"]).resolve()
     try:
         if not directory.exists() and not args.check:
             cache = ROOT / json.loads((ROOT / "DEPENDENCIES.json").read_text())["artifacts_directory"] / "connector-downloads"

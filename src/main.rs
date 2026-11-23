@@ -65,6 +65,16 @@ pub(crate) use message::{Message, drain_a11y_actions};
 pub(crate) fn main() -> iced::Result {
     #[cfg(target_os = "linux")]
     startup::prepare_descriptor_table();
+    #[cfg(all(target_os = "linux", feature = "wpe"))]
+    if std::path::Path::new("/.flatpak-info").is_file()
+        && let Err(error) = enzui_webkit::ffi::deployment::configure_flatpak_application(
+            "org.enzim.Browser",
+            "/app/lib/wpe-extensions",
+        )
+    {
+        eprintln!("Could not initialize the Flatpak web engine: {error}");
+        std::process::exit(1);
+    }
     allocator::configure_startup();
     if let Some(index) = std::env::args().position(|arg| arg == "--write-desktop-entry") {
         let Some(path) = std::env::args().nth(index + 1) else {

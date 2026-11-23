@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.1.0 alpha · Unreleased
+## 0.1.1 alpha
+
+- Install Browser from enzim Apps. Flatpak fetches the shared WebKit Platform
+  with the app and delivers compatible engine updates through the same remote.
+- Browse from a Wayland desktop with normal file chooser, audio, and desktop
+  keyring integration.
+
+## 0.1.0 alpha
 
 - Browse with horizontal or vertical tabs, pinned tabs, groups, and an
   immersive sidebar that opens at the window edge.
