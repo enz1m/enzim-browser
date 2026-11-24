@@ -398,7 +398,7 @@ impl App {
     /// A script dialog, in the words that fit what it asks.
     pub(super) fn script_dialog_view(&self) -> Option<Element<'_, Message>> {
         let dialog = self.browser.dialog.as_ref()?;
-        let site = site_name(&self.address);
+        let site = site_name(&self.browser.saved.tabs[self.browser.saved.active].url);
         let mut body = column![].spacing(10);
         let (decline, accept) = match &dialog.kind {
             // What a page says as it is left is not shown: a page could say
@@ -410,8 +410,14 @@ impl App {
                 (Some(("Stay", "x")), ("Leave", "log-out"))
             }
             kind => {
+                // The engine does not say which frame asked; an embedded frame
+                // from another site can, so the tab's site is context, not the sender.
                 body = body
-                    .push(heading("message-square", site, "Message from this page"))
+                    .push(heading(
+                        "message-square",
+                        "Message from a web page",
+                        format!("Shown on {site}; it may come from content embedded there"),
+                    ))
                     .push(text(dialog.message.clone()).size(14));
                 if matches!(kind, ScriptDialogKind::Prompt { .. }) {
                     body = body.push(field(
