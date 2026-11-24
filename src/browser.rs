@@ -3362,26 +3362,25 @@ impl App {
         match panel {
             Panel::Security => {
                 let service = self.webview.borrow();
-                let overridden = service.tls.as_deref().is_some_and(|tls| {
-                    tls.starts_with(crate::webview_native::CERTIFICATE_OVERRIDDEN)
-                });
+                let unverified = service.tls.is_some()
+                    && !crate::webview_native::certificate_verified(service.tls.as_deref());
                 let mixed = service.mixed_content;
                 let secure = !service.loading
                     && service.tls.is_some()
-                    && !overridden
+                    && !unverified
                     && !mixed
                     && service.native_error.is_none();
                 body = body.push(heading(
                     if secure {
                         "shield-check"
-                    } else if overridden {
+                    } else if unverified {
                         "shield-alert"
                     } else {
                         "info"
                     },
                     if secure {
                         "Connection secured"
-                    } else if overridden {
+                    } else if unverified {
                         "Site not verified"
                     } else if mixed && service.tls.is_some() {
                         "Partly secure"
@@ -3404,7 +3403,7 @@ impl App {
                     ));
                 } else if let Some(tls) = &service.tls {
                     body = body.push(
-                        text(if overridden {
+                        text(if unverified {
                             "The connection is encrypted, but nothing proves who is at the other end. Do not enter passwords or payment details here."
                         } else if mixed {
                             "The page itself came over an encrypted connection, but parts of it (images, scripts) did not and could have been read or changed on the way."
@@ -3420,7 +3419,7 @@ impl App {
                             ("Issued to", "badge-check", v)
                         } else if let Some(v) = line.strip_prefix("Issuer: ") {
                             ("Issued by", "building-2", v)
-                        } else if overridden {
+                        } else if unverified {
                             ("Validation", "shield-alert", line)
                         } else {
                             ("Validation", "shield-check", line)
@@ -3747,9 +3746,7 @@ impl App {
                         } else {
                             match service.tls.as_deref() {
                                 Some(tls)
-                                    if tls.starts_with(
-                                        crate::webview_native::CERTIFICATE_OVERRIDDEN,
-                                    ) =>
+                                    if !crate::webview_native::certificate_verified(Some(tls)) =>
                                 {
                                     "shield-alert"
                                 }
@@ -6261,7 +6258,7 @@ mod popup_refresh_review {
             app.browser.saved.tabs[0].url = "https://example.test/login".into();
             app.address = "https://example.test/login".into();
             app.webview.borrow_mut().loading = false;
-            app.webview.borrow_mut().tls = Some("Subject: example.test\nIssuer: Example Test Authority\nWebKit reported no certificate errors".into());
+            app.webview.borrow_mut().tls = Some("WebKit reported no certificate errors\nSubject: example.test\nIssuer: Example Test Authority".into());
             app.browser.dialog = Some(enzui_webkit::page::ScriptDialogRequest {
                 id: enzui_webkit::page::PageRequestId::new(10),
                 kind: enzui_webkit::page::ScriptDialogKind::Confirm,

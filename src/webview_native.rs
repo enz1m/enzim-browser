@@ -56,6 +56,15 @@ pub(crate) fn take_popup_features(id: u64) -> Option<enzui_webkit::page::WindowF
 pub(crate) const CERTIFICATE_OVERRIDDEN: &str =
     "The certificate could not be verified; you chose to continue";
 
+/// The first line of a view's certificate details when the engine verified
+/// the certificate and no exception covers its host.
+pub(crate) const CERTIFICATE_VERIFIED: &str = "WebKit reported no certificate errors";
+
+/// Whether certificate details prove the site's identity.
+pub(crate) fn certificate_verified(tls: Option<&str>) -> bool {
+    tls.is_some_and(|tls| tls.starts_with(CERTIFICATE_VERIFIED))
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum BrowserAction {
     ColorScheme(bool),
@@ -111,8 +120,8 @@ pub(crate) enum BrowserAction {
         enzui_webkit::page::PageRequestId,
         enzui_webkit::page::AuthAnswer,
     ),
-    /// Continue to a host whose certificate failed validation, for as long
-    /// as this view lives.
+    /// Continue to a host whose certificate failed validation. The engine
+    /// keeps the exception for every view sharing the profile's network session.
     TrustCertificate(String),
     Mute(bool),
     /// Save downloads to this folder from now on.
@@ -2537,10 +2546,10 @@ mod real {
                 tls: self.session.connection_tls_info().map(|info| {
                     format!(
                         "{}\nSubject: {}\nIssuer: {}",
-                        if self.trusts_location() {
+                        if self.certificate_exception_covers(committed_location.as_deref()) {
                             crate::webview_native::CERTIFICATE_OVERRIDDEN.into()
                         } else if info.errors == 0 {
-                            "WebKit reported no certificate errors".into()
+                            crate::webview_native::CERTIFICATE_VERIFIED.into()
                         } else {
                             format!("Certificate errors: {}", info.errors)
                         },
@@ -2741,22 +2750,13 @@ mod real {
                     .is_some_and(|frame| crate::native_interest::import_pending(&frame.status()))
         }
 
-        /// Whether the page on show is on a host the person continued to
-        /// past a failed certificate.
-        fn trusts_location(&self) -> bool {
-            let trusted = self.trusted_hosts.borrow();
-            !trusted.is_empty()
-                && self
-                    .session
-                    .current_uri()
-                    .ok()
-                    .flatten()
-                    .and_then(|uri| url::Url::parse(&uri).ok())
-                    .and_then(|uri| uri.host_str().map(str::to_ascii_lowercase))
-                    .is_some_and(|host| {
-                        let host = host.trim_matches(['[', ']']).trim_end_matches('.');
-                        trusted.contains(host)
-                    })
+        /// Whether the page's host has a certificate exception, which any tab
+        /// sharing this network session may have installed.
+        fn certificate_exception_covers(&self, location: Option<&str>) -> bool {
+            location
+                .and_then(|uri| url::Url::parse(uri).ok())
+                .and_then(|uri| uri.host_str().map(str::to_owned))
+                .is_some_and(|host| self.session.has_certificate_exception(&host))
         }
 
         fn compositor_frame(&mut self) -> Option<enzui_webview::gpu::GpuFrame> {
@@ -2929,8 +2929,9 @@ mod real {
                 .grant(enzui_webkit::web::policy::PermissionKind::MediaKeySystem);
             policy.allow_popups = true;
             policy.allow_downloads = true;
-            // A certificate that fails validation is refused unless the
-            // person chose to continue to that very host, in this view.
+            // A failed certificate is refused unless the person chose, in this
+            // view, to continue to that host; the engine then excepts it for
+            // every view on the same network session.
             policy.allow_insecure_certificates = true;
             let trusted_hosts = std::rc::Rc::new(std::cell::RefCell::new(
                 std::collections::BTreeSet::<String>::new(),

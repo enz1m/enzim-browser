@@ -97,12 +97,9 @@ impl App {
             Incoming::Request(request) => {
                 let state = &self.browser.credentials;
                 let creating = matches!(request.operation, Wanted::Create { .. });
-                let secure = self
-                    .webview
-                    .borrow()
-                    .tls
-                    .as_ref()
-                    .is_some_and(|tls| tls.starts_with("WebKit reported no certificate errors"));
+                let secure = crate::webview_native::certificate_verified(
+                    self.webview.borrow().tls.as_deref(),
+                );
                 super::inline::credential_trace(format_args!(
                     "passkey request: create={creating} rp={} enabled={} setup_pending={} already_pending={} library_open={} secure={secure} private={}",
                     request.rp_id,

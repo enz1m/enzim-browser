@@ -81,6 +81,7 @@ impl Worker {
                 .session
                 .connection_tls_info()
                 .is_some_and(|tls| tls.errors == 0)
+            && !self.certificate_exception_covers(self.session.committed_uri().as_deref())
             && self
                 .session
                 .current_uri()

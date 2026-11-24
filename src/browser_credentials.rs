@@ -576,10 +576,7 @@ impl App {
                 .as_deref()
                 .and_then(|uri| Site::parse(uri, current.container).ok())
                 .is_some_and(|site| site.matches_page(&document.site))
-            && host
-                .tls
-                .as_ref()
-                .is_some_and(|tls| tls.starts_with("WebKit reported no certificate errors")))
+            && crate::webview_native::certificate_verified(host.tls.as_deref()))
         .then_some(document)
     }
     fn credential_save_settings(&mut self, settings: Settings) -> Task<Message> {
@@ -2692,10 +2689,7 @@ impl App {
                 focus,
             } => {
                 let host = self.webview.borrow();
-                let valid_tls = host
-                    .tls
-                    .as_ref()
-                    .is_some_and(|tls| tls.starts_with("WebKit reported no certificate errors"));
+                let valid_tls = crate::webview_native::certificate_verified(host.tls.as_deref());
                 let Some(uri) = host.location.as_deref() else {
                     return;
                 };

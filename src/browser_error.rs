@@ -120,7 +120,7 @@ impl App {
                     "arrow-right",
                     Command::TrustCertificate
                 ),
-                text("Only for a site or device you know, such as one on your own network. Lasts until this tab is closed.")
+                text("Only for a site or device you know, such as one on your own network. Applies to every tab that shares this site data until Browser quits.")
                     .size(12)
                     .color(p.text_muted),
             ]
