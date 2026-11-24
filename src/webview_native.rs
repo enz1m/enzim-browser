@@ -348,7 +348,10 @@ pub(crate) struct NativeMetadata {
     pub(crate) tls: Option<String>,
     pub(crate) cursor: Option<String>,
     pub(crate) dom_report: Option<String>,
+    /// The engine's current address, which follows a pending load.
     pub(crate) location: Option<String>,
+    /// The address of the document on show.
+    pub(crate) committed_location: Option<String>,
 }
 
 // Coalesced worker notification. No GLib/WebKit work happens while iced holds
@@ -2522,6 +2525,11 @@ mod real {
                     Err(error) => (None, Some(error)),
                 }
             };
+            let committed_location = if bootstrap {
+                None
+            } else {
+                self.session.committed_uri()
+            };
             let value = Arc::new(super::NativeMetadata {
                 loading: self.session.is_loading(),
                 can_go_back: self.session.can_go_back(),
@@ -2546,6 +2554,7 @@ mod real {
                 } else {
                     self.session.current_uri().ok().flatten()
                 },
+                committed_location,
                 cursor: self.session.requested_cursor(),
             });
             self.metadata_builds += 1;

@@ -187,6 +187,7 @@ pub(crate) struct WebViewService {
     pub(crate) sandbox_checks: u32,
     // Document title, including the diagnostic fixture's focus reports.
     pub(crate) dom_report: Option<String>,
+    // The address of the document on show, not of a pending load.
     pub(crate) location: Option<String>,
     // Native titles can follow Finished; bind refreshes to the exact inserted visit.
     pub(crate) history_visit: Option<crate::history::RecordedVisit>,
@@ -898,7 +899,7 @@ impl WebViewService {
         self.page_cursor.clone_from(&metadata.cursor);
         self.page_ime.set_cursor(self.page_cursor.as_deref());
         self.dom_report.clone_from(&metadata.dom_report);
-        self.location.clone_from(&metadata.location);
+        self.location.clone_from(&metadata.committed_location);
         self.can_go_back = metadata.can_go_back;
         self.can_go_forward = metadata.can_go_forward;
         self.native_metadata = Some(metadata);

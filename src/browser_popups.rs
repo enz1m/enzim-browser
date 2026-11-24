@@ -11,6 +11,8 @@ use super::*;
 pub(crate) struct PopupWindow {
     /// The tab the window shows.
     pub(crate) tab: TabInfo,
+    /// The address the page opened it for, loaded once the window has it.
+    pub(crate) target: String,
     /// The engine's view, kept by the opener's worker until it is taken.
     pub(crate) popup: u64,
     /// The size of page area the page asked for, in CSS pixels.
@@ -30,6 +32,9 @@ pub(crate) fn popup_window_size(page: Option<(u32, u32)>) -> iced::Size {
     )
 }
 
+/// What a window a page opened shows before its first document commits.
+const POPUP_INITIAL_URL: &str = "about:blank";
+
 /// The height of a popup window's bar.
 pub(crate) const POPUP_BAR_HEIGHT: f32 = 44.0;
 
@@ -45,6 +50,9 @@ impl App {
             return;
         };
         let features = crate::webview_native::take_popup_features(popup);
+        // Until its first navigation commits, the window shows a blank document
+        // its opener can write to, so it is not yet `url`.
+        let shown = String::from(POPUP_INITIAL_URL);
         // A popup window has no tabs to put another in: what it opens is a
         // popup window too.
         if (features.is_some_and(|features| features.popup) || self.popup_window)
@@ -54,12 +62,13 @@ impl App {
                 tab: TabInfo {
                     key: next_tab_key(),
                     favicon: None,
-                    title: site_name(&url),
-                    url,
+                    title: site_name(&shown),
+                    url: shown,
                     pinned: false,
                     group: None,
                     container,
                 },
+                target: url,
                 popup,
                 size: features.and_then(|features| features.size),
             });
@@ -75,8 +84,8 @@ impl App {
         self.browser.saved.tabs.push(TabInfo {
             key,
             favicon: None,
-            title: site_name(&url),
-            url: url.clone(),
+            title: site_name(&shown),
+            url: shown,
             pinned: false,
             group: None,
             container,
@@ -96,8 +105,9 @@ impl App {
     /// For a window just made around a popup: its only tab is the popup,
     /// which loads what it was opened for.
     pub(crate) fn take_popup_window(&mut self, window: PopupWindow) {
-        let PopupWindow { tab, popup, .. } = window;
-        let url = tab.url.clone();
+        let PopupWindow {
+            tab, target, popup, ..
+        } = window;
         self.popup_window = true;
         self.browser.library = None;
         self.browser.saved.tabs = vec![tab];
@@ -111,8 +121,8 @@ impl App {
             // after a moment would not.
             host.show_view();
         }
-        self.address.clone_from(&url);
-        self.submit_browser_action(BrowserAction::ResumePopup(url));
+        self.address.clone_from(&self.browser.saved.tabs[0].url);
+        self.submit_browser_action(BrowserAction::ResumePopup(target));
     }
 
     /// The bar of a popup window: who the page is from, where it is, and the
@@ -127,6 +137,9 @@ impl App {
         let (origin, rest) = url::Url::parse(url).ok().map_or_else(
             || (url.clone(), String::new()),
             |parsed| {
+                if !parsed.origin().is_tuple() {
+                    return (url.clone(), String::new());
+                }
                 let origin = parsed.origin().ascii_serialization();
                 let rest = url.strip_prefix(&origin).unwrap_or_default().to_owned();
                 (origin, rest)
@@ -233,7 +246,10 @@ mod tests {
         assert_eq!(app.browser.saved.active, 1);
         let popup = &app.browser.saved.tabs[1];
         assert_eq!(popup.container, Some(3));
-        assert_eq!(popup.url, "https://id.example/sign-in");
+        assert_eq!(
+            popup.url, "about:blank",
+            "an uncommitted window took its target address"
+        );
         // The tab took a new key when its window was let load; it is still
         // known as the window of its opener.
         let key = popup.key;

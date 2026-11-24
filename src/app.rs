@@ -1232,6 +1232,7 @@ mod native_dispatch_tests {
                 view,
                 metadata: Some(std::sync::Arc::new(crate::webview_native::NativeMetadata {
                     location: Some("https://example.org/".into()),
+                    committed_location: Some("https://example.org/".into()),
                     dom_report: Some("Updated background title".into()),
                     ..Default::default()
                 })),
