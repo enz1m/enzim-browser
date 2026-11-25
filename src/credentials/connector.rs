@@ -1366,7 +1366,8 @@ mod tests {
         assert!(!format!("{output:?}").contains("output-fixture"));
         observer::reset();
         drop(output);
-        assert_eq!(observer::snapshot().zeroed_bytes, b"output-fixture".len());
+        // Captured buffers are wiped with their spare capacity, so at least the payload.
+        assert!(observer::snapshot().zeroed_bytes >= b"output-fixture".len());
         let error = process_transport::run_sensitive(
             ProcessRequest::new(
                 "/bin/cat",
@@ -1382,7 +1383,7 @@ mod tests {
         assert!(retained > 0);
         observer::reset();
         drop(error);
-        assert_eq!(observer::snapshot().zeroed_bytes, retained);
+        assert!(observer::snapshot().zeroed_bytes >= retained);
     }
     #[test]
     fn expired_or_cancelled_connector_requests_never_spawn_another_helper() {
