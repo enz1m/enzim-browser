@@ -196,9 +196,9 @@ impl crate::App {
         if ready {
             content = content.push(
                 enz_text(match self.browser.saved.assistant.access {
-                    super::Access::Full => "It can read and use your tabs.",
-                    super::Access::Moderate => "It can read and use your tabs. It asks before opening, closing or switching tabs.",
-                    super::Access::Restricted => "It can read and use your tabs. It asks before acting on a page.",
+                    super::Access::Full => "It can read and use this tab. It asks before reading other tabs.",
+                    super::Access::Moderate => "It can read and use this tab. It asks before reading other tabs or opening, closing or switching tabs.",
+                    super::Access::Restricted => "It can read this tab. It asks before reading other tabs or acting on a page.",
                 })
                     .size_px(SMALL)
                     .color(muted)
@@ -478,9 +478,9 @@ impl crate::App {
                 ]
                 .spacing(6);
                 if !*streaming {
-                    for url in links {
-                        if let Some(Some(preview)) = chat.previews.get(url) {
-                            column = column.push(preview_card(preview, None, p));
+                    if self.browser.saved.assistant.link_previews {
+                        for url in links {
+                            column = column.push(link_card(url, None, chat, true, p));
                         }
                     }
                     if !text.is_empty() && final_reply && !(running && last) {
@@ -605,7 +605,7 @@ impl crate::App {
                 }
                 container(column).padding(Padding { bottom: 2.0, ..Padding::ZERO }).into()
             }
-            Body::Approval { id, name, arguments, decision } => {
+            Body::Approval { id, name, arguments, gates, decision } => {
                 let mut card = column![
                     row![
                         enz_icon("shield-alert").size(15.0).tint(p.warning).into_element(),
@@ -619,6 +619,14 @@ impl crate::App {
                     .align_y(Alignment::Center),
                 ]
                 .spacing(8);
+                let reason = match gates.first() {
+                    Some(super::Gate::OtherTab) => Some("This uses a tab other than the one you are on."),
+                    Some(super::Gate::Egress) => Some("This chat holds page content, and the assistant chose this address; the site could receive some of it."),
+                    _ => None,
+                };
+                if let Some(reason) = reason {
+                    card = card.push(enz_text(reason).size_px(SMALL).color(muted).wrap(true).into_element());
+                }
                 if arguments.trim() != "{}" {
                     card = card.push(code(arguments.clone(), 90.0));
                 }
@@ -659,11 +667,7 @@ impl crate::App {
             Body::Links(links) => {
                 let mut cards = column![].spacing(6);
                 for link in links {
-                    let card = match chat.previews.get(&link.url) {
-                        Some(Some(preview)) => preview_card(preview, Some(link), p),
-                        _ => plain_link_card(link, p),
-                    };
-                    cards = cards.push(card);
+                    cards = cards.push(link_card(&link.url, Some(link), chat, self.browser.saved.assistant.link_previews, p));
                 }
                 container(cards).padding(Padding { top: 2.0, bottom: 6.0, ..Padding::ZERO }).into()
             }
@@ -886,7 +890,7 @@ impl crate::App {
         body = body.push(
             enz_preferences_row("Link previews")
                 .icon("link")
-                .subtitle("Show a small preview of pages the assistant links; their sites see a plain request.")
+                .subtitle("Offer a preview of pages the assistant links; a site sees a plain request when you ask for its preview.")
                 .switch(s.link_previews, |on| m(Msg::Set(Change::LinkPreviews(on))))
                 .into_element(),
         );
@@ -1497,6 +1501,30 @@ fn preview_card<'a>(preview: &super::preview::Preview, link: Option<&super::work
     .into_element()
 }
 
+/// A link's preview once fetched, else its address with a button that fetches
+/// the preview: a site learns of a link only when the person asks.
+fn link_card<'a>(url: &str, link: Option<&super::worker::Link>, chat: &super::Chat, previews: bool, p: &Palette) -> Element<'a, Message> {
+    let requested = match chat.previews.get(url) {
+        Some(Some(preview)) => return preview_card(preview, link, p),
+        found => found.is_some(),
+    };
+    let bare = super::worker::Link { url: url.to_owned(), title: String::new(), note: String::new() };
+    let card = plain_link_card(link.unwrap_or(&bare), p);
+    if !previews || requested {
+        return card;
+    }
+    row![
+        card,
+        enz_toolbar_icon("eye", m(Msg::LoadPreview(url.to_owned())))
+            .aria_label("Show a preview")
+            .tooltip("Show a preview")
+            .into_element(),
+    ]
+    .spacing(4)
+    .align_y(Alignment::Center)
+    .into()
+}
+
 fn plain_link_card<'a>(link: &super::worker::Link, p: &Palette) -> Element<'a, Message> {
     let host = url::Url::parse(&link.url)
         .ok()
@@ -1514,7 +1542,7 @@ fn plain_link_card<'a>(link: &super::worker::Link, p: &Palette) -> Element<'a, M
 
 fn access_help(access: super::Access) -> &'static str {
     match access {
-        super::Access::Full => "The assistant acts on pages and tabs without asking.",
+        super::Access::Full => "The assistant acts on pages and tabs without asking. Reading another tab, or reaching a new address once it has read pages, still waits for your OK.",
         super::Access::Moderate => "It acts on the tab you are on without asking; opening, closing or switching tabs and acting on other tabs wait for your OK.",
         super::Access::Restricted => "Clicking, typing, navigating, opening or closing tabs and running scripts wait for your OK.",
     }

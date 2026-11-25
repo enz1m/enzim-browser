@@ -66,6 +66,8 @@ pub(crate) enum Event {
     Tool { id: String, name: String, arguments: String },
     /// A browser function for the UI thread to run.
     Run { id: String, name: String, arguments: Value },
+    /// One of [`FETCHES`], which runs once the panel answers it with `Ok`.
+    Ask { id: String, name: String, arguments: Value },
     ToolDone {
         id: String,
         ok: bool,
@@ -116,6 +118,9 @@ impl Handle {
         let _ = self.input.send(Input::Result(id, result));
     }
 }
+
+/// Panel tools that reach the network from the turn's thread.
+pub(crate) const FETCHES: [&str; 2] = ["web_search", "read_web_page"];
 
 /// The panel's own tools: they shape how the answer is shown.
 pub(crate) fn panel_tools() -> Vec<Value> {
@@ -419,10 +424,13 @@ fn run(mut turn: Turn, cancel: &AtomicBool, inputs: &mpsc::Receiver<Input>, send
                     let query = arguments["query"].as_str().unwrap_or_default();
                     Ok(json!({"chats": super::history::search(&super::history::folder(), query, 4)}))
                 }
-                "web_search" => super::preview::search(arguments["query"].as_str().unwrap_or_default()),
-                "read_web_page" => {
-                    let url = arguments["url"].as_str().unwrap_or_default().trim().to_owned();
-                    super::preview::page_text(&url)
+                name if FETCHES.contains(&name) => {
+                    send(Event::Ask {
+                        id: call.id.clone(),
+                        name: call.name.clone(),
+                        arguments: arguments.clone(),
+                    });
+                    wait(&call.id, inputs, &mut steers, cancel).and_then(|_| fetch(name, &arguments))
                 }
                 name if super::mcp::TOOLS.contains(&name) => match apps.as_mut() {
                     Some(client) => client.call(name, &arguments, cancel, || {
@@ -493,6 +501,14 @@ fn run(mut turn: Turn, cancel: &AtomicBool, inputs: &mpsc::Receiver<Input>, send
             }
             send(Event::Settled(false));
         }
+    }
+}
+
+fn fetch(name: &str, arguments: &Value) -> Result<Value, String> {
+    if name == "web_search" {
+        super::preview::search(arguments["query"].as_str().unwrap_or_default())
+    } else {
+        super::preview::page_text(arguments["url"].as_str().unwrap_or_default().trim())
     }
 }
 
@@ -887,12 +903,12 @@ mod tests {
             apps: false,
             memories: None,
         };
-        let (_input, inputs) = mpsc::channel();
+        let (input, inputs) = mpsc::channel();
         let finished = std::cell::RefCell::new(None);
-        run(turn, &AtomicBool::new(false), &inputs, &|event| {
-            if let Event::Finished { messages, .. } = event {
-                *finished.borrow_mut() = Some(messages);
-            }
+        run(turn, &AtomicBool::new(false), &inputs, &|event| match event {
+            Event::Ask { id, .. } => input.send(Input::Result(id, Ok(Value::Null))).expect("answer"),
+            Event::Finished { messages, .. } => *finished.borrow_mut() = Some(messages),
+            _ => {}
         });
         let messages = finished.into_inner().expect("finished");
         let results: Vec<&str> = messages.iter().filter(|m| m["role"] == "tool").filter_map(|m| m["content"].as_str()).collect();
@@ -922,12 +938,12 @@ mod tests {
             apps: false,
             memories: None,
         };
-        let (_input, inputs) = mpsc::channel();
+        let (input, inputs) = mpsc::channel();
         let finished = std::cell::RefCell::new(None);
-        run(turn, &AtomicBool::new(false), &inputs, &|event| {
-            if let Event::Finished { messages, .. } = event {
-                *finished.borrow_mut() = Some(messages);
-            }
+        run(turn, &AtomicBool::new(false), &inputs, &|event| match event {
+            Event::Ask { id, .. } => input.send(Input::Result(id, Ok(Value::Null))).expect("answer"),
+            Event::Finished { messages, .. } => *finished.borrow_mut() = Some(messages),
+            _ => {}
         });
         let messages = finished.into_inner().expect("finished");
         assert_eq!(requests.load(Ordering::SeqCst), 2, "asked once, not again");

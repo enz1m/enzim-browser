@@ -209,7 +209,8 @@ pub(crate) fn nickname(address: &str) -> String {
         .map_or_else(|| if host.is_empty() { "Service".into() } else { host.clone() }, |(name, ..)| (*name).to_owned())
 }
 
-/// What the assistant may do on pages without asking. Reading never asks.
+/// What the assistant may do on pages without asking. Reading the tab the
+/// person is on never asks; other tabs and fetches always may, see [`gates`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum Access {
     /// Everything.
@@ -246,6 +247,49 @@ impl Access {
             }
         }
     }
+}
+
+/// Why a function call waits for the person's answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Gate {
+    /// The access level asks before this action.
+    Act,
+    /// It reads or acts on a tab other than the one the person is on.
+    OtherTab,
+    /// It reaches an address the model chose after page content entered the
+    /// chat, which could carry that content away.
+    Egress,
+}
+
+/// What must be allowed before the call `name` runs, whatever the access
+/// level for [`Gate::OtherTab`] and [`Gate::Egress`]; `acting` marks a browser
+/// function that changes things, and `page_content` a chat that has read
+/// pages, other sites or other apps.
+pub(crate) fn gates(access: Access, name: &str, arguments: &Value, current: Option<u64>, acting: bool, page_content: bool) -> Vec<Gate> {
+    let mut gates = Vec::new();
+    let reaches_out = match name {
+        "web_search" | "read_web_page" | "evaluate_script" | "new_page" => true,
+        "new_window" => arguments.get("url").is_some(),
+        "navigate_page" => matches!(arguments.get("type").and_then(Value::as_str), None | Some("url")),
+        _ => false,
+    };
+    if page_content && reaches_out {
+        gates.push(Gate::Egress);
+    }
+    let other_tab = matches!(name, "list_pages" | "list_windows")
+        || arguments.get("page_id").is_some_and(|page| current.is_none() || page.as_u64() != current);
+    if other_tab {
+        gates.push(Gate::OtherTab);
+    }
+    if acting && access.asks(name, arguments, current) {
+        gates.push(Gate::Act);
+    }
+    gates
+}
+
+/// Whether a function's result brings outside text into the chat.
+fn carries_content(name: &str) -> bool {
+    !matches!(name, "suggest_replies" | "show_links" | "remember" | "forget" | "list_containers")
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -377,8 +421,10 @@ pub(crate) struct Chat {
     /// The first row key of the running turn: its steps count from zero, so
     /// rows are matched to steps only within it.
     turn_key: u64,
-    /// The person allowed page actions for this chat.
-    allow_actions: bool,
+    /// What the person allowed for the rest of this chat.
+    granted: Vec<Gate>,
+    /// Pages, other sites or other apps were read into this chat.
+    page_content: bool,
     pub(crate) suggestions: Vec<String>,
     /// A short note under the composer, such as a picture that failed.
     pub(crate) notice: Option<String>,
@@ -470,6 +516,8 @@ pub(crate) enum Body {
         id: String,
         name: String,
         arguments: String,
+        /// What the person is asked to allow, the reason shown first.
+        gates: Vec<Gate>,
         decision: Decision,
     },
     Links(Vec<worker::Link>),
@@ -514,6 +562,8 @@ pub(crate) enum Msg {
     Opened(Option<Box<history::Saved>>),
     DeleteChat(String),
     HoverChat(Option<String>),
+    /// Fetches the preview of a link the person asked to see.
+    LoadPreview(String),
     Preview(String, Option<preview::Preview>),
     /// The transcript's offset from its top, and whether that is its end.
     Scrolled(f32, bool),
@@ -641,6 +691,13 @@ pub(crate) fn tool_request(name: &str, arguments: &str) -> String {
         "press_key" => format!("Press {}", text("key")),
         "evaluate_script" => "Run a script on the page".into(),
         "handle_dialog" => "Answer the page's dialog".into(),
+        "list_pages" => "Look at your open tabs".into(),
+        "list_windows" => "Look at your windows".into(),
+        "take_snapshot" => "Read a page".into(),
+        "take_screenshot" => "Look at a page".into(),
+        "wait_for" => "Wait for text on a page".into(),
+        "web_search" => format!("Search the web for “{}”", text("query")),
+        "read_web_page" => format!("Read {}", text("url")),
         other => tool_title(other, arguments),
     }
 }
@@ -701,7 +758,8 @@ impl Chat {
             running: None,
             turn: 0,
             turn_key: 0,
-            allow_actions: false,
+            granted: Vec::new(),
+            page_content: false,
             suggestions: Vec::new(),
             notice: None,
             previews: BTreeMap::new(),
@@ -765,6 +823,7 @@ impl Chat {
     fn restored(saved: history::Saved) -> Self {
         let mut chat = Self::new();
         chat.id = Some(saved.id);
+        chat.page_content = saved.conversation.iter().any(|message| message["role"] == "tool");
         chat.conversation = saved.conversation;
         for row in saved.rows {
             let body = match row {
@@ -898,9 +957,6 @@ impl crate::App {
         let denied = |tab: &crate::browser::TabInfo| {
             tab.container.is_some_and(|id| saved.containers.iter().find(|c| c.id == id).is_none_or(|c| c.privacy.deny_agents))
         };
-        let short = |text: &str, max: usize| -> String {
-            if text.chars().count() <= max { text.to_owned() } else { format!("{}…", text.chars().take(max).collect::<String>()) }
-        };
         let tab = &saved.tabs[saved.active];
         let page = crate::page_ids::page_of(tab.key);
         let mut context = if denied(tab) {
@@ -910,14 +966,20 @@ impl crate::App {
         } else {
             format!("Current tab: page_id {page}, “{}”, {}", tab.title, tab.url)
         };
-        // The window's other tabs, so questions about them need no lookup.
+        // Only the sites of the window's other tabs: their titles and paths
+        // are read with list_pages, which asks first.
+        let origin = |address: &str| match url::Url::parse(address) {
+            Ok(url) if url.origin().is_tuple() => url.origin().ascii_serialization(),
+            Ok(url) => format!("a {} page", url.scheme()),
+            Err(_) => "a page".to_owned(),
+        };
         let others: Vec<String> = saved
             .tabs
             .iter()
             .enumerate()
             .filter(|(index, tab)| *index != saved.active && !denied(tab) && !tab.url.is_empty() && crate::browser::InternalPage::from_url(&tab.url).is_none())
             .take(OTHER_TABS)
-            .map(|(_, tab)| format!("page_id {}, “{}”, {}", crate::page_ids::page_of(tab.key), short(&tab.title, 60), short(&tab.url, 100)))
+            .map(|(_, tab)| format!("page_id {}, {}", crate::page_ids::page_of(tab.key), origin(&tab.url)))
             .collect();
         if !others.is_empty() {
             context.push_str("\nOther tabs: ");
@@ -1038,20 +1100,31 @@ impl crate::App {
                     return Task::none();
                 };
                 let mut run = None;
+                let mut allowed = Vec::new();
                 if let Some(row) = chat.tool_row(&id)
-                    && let Body::Approval { name, arguments, decision, .. } = &mut row.body
+                    && let Body::Approval { name, arguments, gates, decision, .. } = &mut row.body
                     && *decision == Decision::Pending
                 {
                     *decision = if choice == Choice::Deny { Decision::Denied } else { Decision::Allowed };
                     if choice != Choice::Deny {
                         run = Some((name.clone(), arguments.clone()));
+                        allowed.clone_from(gates);
                     }
                 }
                 if choice == Choice::Chat {
-                    chat.allow_actions = true;
+                    for gate in allowed {
+                        if !chat.granted.contains(&gate) {
+                            chat.granted.push(gate);
+                        }
+                    }
                 }
                 let handle = chat.running.as_ref().and_then(|r| r.handle.clone());
                 match run {
+                    Some((name, _)) if worker::FETCHES.contains(&name.as_str()) => {
+                        if let Some(handle) = handle {
+                            handle.answer(id, Ok(Value::Null));
+                        }
+                    }
                     Some((name, arguments)) => {
                         let arguments = serde_json::from_str(&arguments).unwrap_or(Value::Null);
                         self.assistant.calls.push((id, name, arguments));
@@ -1223,6 +1296,16 @@ impl crate::App {
                     },
                     |()| m(Msg::Tick),
                 )
+            }
+            Msg::LoadPreview(url) => {
+                if let Some(chat) = self.assistant.chat.as_mut()
+                    && self.browser.saved.assistant.link_previews
+                    && !chat.previews.contains_key(&url)
+                {
+                    chat.previews.insert(url.clone(), None);
+                    return fetch_preview(url);
+                }
+                Task::none()
             }
             Msg::Preview(url, found) => {
                 if let Some(chat) = self.assistant.chat.as_mut() {
@@ -1745,7 +1828,6 @@ impl crate::App {
     }
 
     fn assistant_event(&mut self, turn: u64, event: worker::Event) -> Task<Message> {
-        let previews = self.browser.saved.assistant.link_previews;
         let access = self.browser.saved.assistant.access;
         let current = self
             .browser
@@ -1811,14 +1893,6 @@ impl crate::App {
                 }
                 let blocks = enzui_widgets::markdown::parse(&text);
                 let links = if done { links_of(&blocks, &text) } else { Vec::new() };
-                if previews {
-                    for url in &links {
-                        if !chat.previews.contains_key(url) {
-                            chat.previews.insert(url.clone(), None);
-                            tasks.push(fetch_preview(url.clone()));
-                        }
-                    }
-                }
                 let body = Body::Reply { step, text, blocks, streaming: !done, links };
                 match chat.reply_row(step) {
                     Some(row) => row.body = body,
@@ -1839,17 +1913,26 @@ impl crate::App {
                     });
                 }
             }
-            worker::Event::Run { id, name, arguments } => {
+            worker::Event::Run { id, name, arguments } | worker::Event::Ask { id, name, arguments } => {
                 let acting = PAGE_TOOLS.acting.contains(&name);
-                if acting && access.asks(&name, &arguments, current) && !chat.allow_actions {
+                let mut waiting = gates(access, &name, &arguments, current, acting, chat.page_content);
+                waiting.retain(|gate| !chat.granted.contains(gate));
+                if !waiting.is_empty() {
                     // The tool's row becomes the question.
                     if let Some(row) = chat.tool_row(&id) {
                         row.body = Body::Approval {
                             id,
                             name,
                             arguments: serde_json::to_string_pretty(&arguments).unwrap_or_default(),
+                            gates: waiting,
                             decision: Decision::Pending,
                         };
+                    } else if let Some(handle) = chat.running.as_ref().and_then(|r| r.handle.as_ref()) {
+                        handle.answer(id, Err("The person was not asked, so this did not run.".into()));
+                    }
+                } else if worker::FETCHES.contains(&name.as_str()) {
+                    if let Some(handle) = chat.running.as_ref().and_then(|r| r.handle.as_ref()) {
+                        handle.answer(id, Ok(Value::Null));
                     }
                 } else {
                     self.assistant.calls.push((id, name, arguments));
@@ -1860,6 +1943,10 @@ impl crate::App {
                     running.status = None;
                 }
 
+                chat.page_content |= ok
+                    && chat
+                        .tool_row(&id)
+                        .is_some_and(|row| matches!(&row.body, Body::Tool { name, .. } | Body::Approval { name, .. } if carries_content(name)));
                 if let Some(row) = chat.tool_row(&id) {
                     let picture = image.as_deref().and_then(|bytes| decode_picture(bytes));
                     match &mut row.body {
@@ -1868,7 +1955,7 @@ impl crate::App {
                             *i = picture;
                             *status = if ok { ToolStatus::Done } else { ToolStatus::Failed };
                         }
-                        Body::Approval { id, name, arguments, decision } => {
+                        Body::Approval { id, name, arguments, decision, .. } => {
                             let allowed = *decision == Decision::Allowed;
                             row.body = Body::Tool {
                                 id: id.clone(),
@@ -1891,14 +1978,6 @@ impl crate::App {
             }
             worker::Event::Suggest(replies) => chat.suggestions = replies,
             worker::Event::Links(links) => {
-                if previews {
-                    for link in &links {
-                        if !chat.previews.contains_key(&link.url) {
-                            chat.previews.insert(link.url.clone(), None);
-                            tasks.push(fetch_preview(link.url.clone()));
-                        }
-                    }
-                }
                 chat.push(Body::Links(links));
             }
             worker::Event::Status(status) => {
@@ -2368,6 +2447,40 @@ mod tests {
     }
 
     #[test]
+    fn other_tabs_and_fetches_after_page_content_ask_at_every_level() {
+        let here = json!({"page_id": 7});
+        let other = json!({"page_id": 8});
+        for access in Access::ALL {
+            assert_eq!(gates(access, "take_snapshot", &here, Some(7), false, false), [], "reading the person's tab never asks");
+            assert_eq!(gates(access, "take_snapshot", &here, Some(7), false, true), []);
+            for read in ["take_snapshot", "take_screenshot", "wait_for"] {
+                assert_eq!(gates(access, read, &other, Some(7), false, false), [Gate::OtherTab], "{access:?} {read}");
+            }
+            assert_eq!(gates(access, "take_snapshot", &here, None, false, false), [Gate::OtherTab]);
+            assert_eq!(gates(access, "list_pages", &json!({}), Some(7), false, false), [Gate::OtherTab]);
+            assert_eq!(gates(access, "list_windows", &json!({}), Some(7), false, false), [Gate::OtherTab]);
+            assert_eq!(gates(access, "list_containers", &json!({}), Some(7), false, true), []);
+            for fetch in ["web_search", "read_web_page"] {
+                assert_eq!(gates(access, fetch, &json!({}), Some(7), false, false), [], "{fetch} before page content");
+                assert_eq!(gates(access, fetch, &json!({}), Some(7), false, true), [Gate::Egress], "{fetch} after page content");
+            }
+            let open = json!({"page_id": 7, "url": "https://example.org/?q=secret"});
+            assert!(gates(access, "navigate_page", &open, Some(7), true, true).contains(&Gate::Egress));
+            assert!(gates(access, "new_page", &open, Some(7), true, true).contains(&Gate::Egress));
+            assert!(gates(access, "new_window", &open, Some(7), true, true).contains(&Gate::Egress));
+            assert!(gates(access, "evaluate_script", &here, Some(7), true, true).contains(&Gate::Egress));
+            let back = json!({"page_id": 7, "type": "back"});
+            assert!(!gates(access, "navigate_page", &back, Some(7), true, true).contains(&Gate::Egress));
+            assert!(!gates(access, "new_window", &json!({}), Some(7), true, true).contains(&Gate::Egress));
+        }
+        assert_eq!(gates(Access::Full, "select_page", &other, Some(7), true, false), [Gate::OtherTab], "switching to another tab asks even with full access");
+        assert_eq!(gates(Access::Moderate, "click", &other, Some(7), true, false), [Gate::OtherTab, Gate::Act]);
+        assert_eq!(gates(Access::Moderate, "click", &here, Some(7), true, true), []);
+        assert!(carries_content("take_snapshot") && carries_content("read_web_page") && carries_content("enzui_call"));
+        assert!(!carries_content("suggest_replies") && !carries_content("list_containers"));
+    }
+
+    #[test]
     fn each_message_names_the_other_tabs() {
         let mut app = crate::browser::browser_tests::app();
         let mut tab = app.browser.saved.tabs[0].clone();
@@ -2376,7 +2489,7 @@ mod tests {
         app.browser.saved.tabs[0].url = "https://example.com/".into();
         app.browser.saved.tabs[0].title = "Example".into();
         tab.key = crate::browser::next_tab_key();
-        tab.url = "https://go.dev/".into();
+        tab.url = "https://go.dev/doc/private?token=1".into();
         tab.title = "The Go Programming Language".into();
         app.browser.saved.tabs.push(tab.clone());
         tab.key = crate::browser::next_tab_key();
@@ -2385,7 +2498,8 @@ mod tests {
         app.browser.saved.tabs.push(tab);
         let context = app.assistant_context();
         assert!(context.starts_with("Current tab: page_id"));
-        assert!(context.contains("Other tabs: page_id") && context.contains("https://go.dev/"), "{context}");
+        assert!(context.contains("Other tabs: page_id") && context.contains("https://go.dev"), "{context}");
+        assert!(!context.contains("/doc/private") && !context.contains("Go Programming"), "other tabs show only their origin: {context}");
         assert!(!context.contains("bank.example"), "a tab in a container closed to agents is left out");
     }
 

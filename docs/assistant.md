@@ -89,7 +89,12 @@ Private windows and containers whose **Allow agents** is off are out of its
 reach, as they are for agents.
 
 What it may do without asking is chosen in the message field's bottom row or in
-Settings → Assistant → Access to pages. Reading never asks.
+Settings → Assistant → Access to pages. Reading the tab you are on never asks.
+At every level, reading or acting on another tab asks, and so does a web
+search, a page fetch, opening an address or running a script once the chat
+holds page content, since the address the model chose could carry it away.
+Each message names only the sites of your other tabs, not their titles or
+addresses.
 
 - **Restricted** (the default): every function that changes something
   (opening, closing or switching tabs, navigating, clicking, typing, running
@@ -124,8 +129,9 @@ back, including the picture when it looked at a page.
 
 ## Links, pictures and steering
 
-- Links in a reply get a small preview card (title, description, site,
-  picture) unless **Link previews** is off. Previews and `read_web_page`
+- Links in a reply get a preview button unless **Link previews** is off; a
+  site learns of the link only when you ask for its preview card (title,
+  description, site, picture). Previews and `read_web_page`
   fetch only public addresses: the name is resolved first, every address must
   be global, the connection is pinned to it, and redirects are checked the same
   way. Nothing but a plain GET is sent.
