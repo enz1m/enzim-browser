@@ -21,7 +21,8 @@ pub(crate) enum ActionCommand {
     /// Move the tab to a window of its own, with its page as it is where
     /// it has one; otherwise close it and open its address there.
     MoveToWindow(usize),
-    /// Open an address in a new window; `true` for a private one.
+    /// Open an address in a new window; `true` for a private one. From a
+    /// private window it is always private.
     OpenWindow(String, bool),
     /// Open a link in a tab without turning to it.
     VisitBackground(String),
@@ -343,7 +344,9 @@ impl App {
                 self.new_window = Some((self.browser.private, Some(url)));
                 return self.browser_command(Command::Close(index));
             }
-            OpenWindow(url, private) => self.new_window = Some((private, Some(url))),
+            OpenWindow(url, private) => {
+                self.new_window = Some((private || self.browser.private, Some(url)));
+            }
             VisitBackground(url) => self.visit_background(url),
             SelectNth(nth) => {
                 let last = self.browser.saved.tabs.len() - 1;
