@@ -151,6 +151,8 @@ pub(crate) enum Command {
     Container(ContainerCommand),
     Import(ImportCommand),
     OpenLocal,
+    /// The address bar's address, chosen by the person.
+    AddressSubmit,
     ChooseProfile,
     ExternalVisit(String),
     /// An address opened from outside in a new tab of this container, or of
@@ -538,6 +540,8 @@ pub(crate) struct Browser {
     pub(crate) start_suggestions_open: bool,
     pub(crate) address_suggestion_highlight: Option<usize>,
     pub(crate) local_grants: Vec<(Option<u64>, String)>,
+    /// Local destinations the other windows allow, kept by the window list.
+    pub(crate) local_elsewhere: Vec<local::Claim>,
     pub(crate) container_notice: String,
     pub(crate) new_tab_container: Option<u64>,
     pub(crate) history_store: crate::history::Store,
@@ -741,6 +745,7 @@ impl Browser {
             start_suggestions_open: false,
             address_suggestion_highlight: None,
             local_grants: Vec::new(),
+            local_elsewhere: Vec::new(),
             container_notice: String::new(),
             new_tab_container: None,
             history_filter: String::new(),
@@ -936,6 +941,13 @@ impl App {
             Network(command) => return self.network_command(command),
             Inspect(command) => return self.inspector_command(command),
             OpenLocal => return self.open_local_site(),
+            AddressSubmit => {
+                let address = self
+                    .selected_address_suggestion()
+                    .unwrap_or_else(|| self.browser.saved.search.resolve(&self.address));
+                self.grant_chosen_local(&address);
+                return self.update(Message::BrowserGo);
+            }
             Credential(command) => return self.credential_command(command),
             Prompt(command) => return self.prompt_command(command),
             Action(command) => return self.action_command(command),
@@ -1254,6 +1266,7 @@ impl App {
             Navigate(url) => {
                 self.browser.address_suggestions_open = false;
                 self.browser.address_suggestion_highlight = None;
+                self.grant_chosen_local(&self.browser.saved.search.resolve(&url));
                 self.address = url;
                 return self.update(Message::BrowserGo);
             }
@@ -1447,6 +1460,9 @@ impl App {
             }
             Submit => {
                 if let Some(url) = self.selected_new_tab_target() {
+                    if let Some(origin) = local::network_origin(&url) {
+                        self.grant_local(self.browser.new_tab_container, origin);
+                    }
                     self.new_tab_in_container(url, self.browser.new_tab_container);
                     self.browser.panel = crate::browser::Panel::None;
                 }
@@ -3887,7 +3903,7 @@ impl App {
                 site_tools().into_iter().fold(trailing, iced::widget::Row::push)
             }
         })
-        .on_submit(Message::BrowserGo);
+        .on_submit(c(Command::AddressSubmit));
         // In the narrow sidebar the site-information button's own margin is
         // space enough before it.
         let address = if immersive {

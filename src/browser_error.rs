@@ -74,7 +74,7 @@ impl App {
             body = body.push(
                 column![
                     action("Open address", "arrow-right", Command::OpenLocal),
-                    text("Allows this destination in the current browsing session.")
+                    text("Allows this destination in this container while a tab shows it.")
                         .size(12)
                         .color(p.text_muted),
                 ]

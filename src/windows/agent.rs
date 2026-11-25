@@ -395,7 +395,10 @@ impl Windows {
                                 Err(failure("invalid_input", "type url needs a url.")),
                             );
                         };
-                        app.browser_command(Command::Navigate(url))
+                        // An agent's address is not the person's choice, so it grants no local access.
+                        app.browser.address_suggestions_open = false;
+                        app.address = url;
+                        app.update(Message::BrowserGo)
                     }
                     NavigationType::Back => {
                         app.submit_browser_action(BrowserAction::Back);

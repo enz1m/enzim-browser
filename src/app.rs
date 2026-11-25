@@ -675,30 +675,10 @@ impl App {
                     }
                 }
                 {
+                    let mut origins =
+                        self.local_origins(self.browser.saved.tabs[self.browser.saved.active].container);
                     let service = self.webview.borrow();
                     if let (Some(native), Some(view)) = (&service.native, service.live_view) {
-                        let container =
-                            self.browser.saved.tabs[self.browser.saved.active].container;
-                        let mut origins: Vec<String> = self
-                            .browser
-                            .saved
-                            .local_sites
-                            .iter()
-                            .filter(|site| Some(site.container) == container)
-                            .map(|site| site.origin.clone())
-                            .collect();
-                        if let Some(origin) = crate::browser::local::network_origin(
-                            &self.browser.saved.tabs[self.browser.saved.active].url,
-                        ) {
-                            origins.push(origin);
-                        }
-                        origins.extend(
-                            self.browser
-                                .local_grants
-                                .iter()
-                                .filter(|(owner, _)| *owner == container)
-                                .map(|(_, origin)| origin.clone()),
-                        );
                         let document_uri = match &action {
                             crate::webview_native::BrowserAction::Navigate(uri)
                             | crate::webview_native::BrowserAction::ResumePopup(uri) => {

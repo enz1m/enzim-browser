@@ -125,6 +125,17 @@ impl Sources {
             .values()
             .find_map(|server| server.display_uri(uri))
     }
+    /// The origins serving `uri`, a local document's `file:` address.
+    pub(crate) fn origins_of(&self, uri: &str) -> Vec<String> {
+        self.servers
+            .iter()
+            .filter(|(root, _)| {
+                url::Url::from_directory_path(root)
+                    .is_ok_and(|prefix| uri.starts_with(prefix.as_str()))
+            })
+            .map(|(_, server)| server.origin())
+            .collect()
+    }
     pub(crate) fn retain<'a>(&mut self, uris: impl Iterator<Item = &'a str>) {
         let uris: Vec<_> = uris.collect();
         self.servers.retain(|root, server| {

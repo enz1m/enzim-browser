@@ -396,7 +396,7 @@ pub(crate) struct Panel {
     pub(crate) picker: Option<String>,
     pub(crate) signing_in: Option<Arc<std::sync::atomic::AtomicBool>>,
     /// The loopback origin a running sign-in returns to.
-    sign_in_return: Option<String>,
+    pub(crate) sign_in_return: Option<String>,
     pub(crate) sign_in_error: Option<String>,
     /// Each service's models, as last read; a service missing is not read yet.
     pub(crate) models: std::collections::BTreeMap<String, Result<Vec<String>, String>>,

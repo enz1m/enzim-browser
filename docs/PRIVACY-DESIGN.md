@@ -115,18 +115,20 @@ A tab group is an organizational feature; it does not provide that storage
 boundary. Container identity must survive tab moves and renderer recreation.
 [Mozilla Multi-Account Containers](https://addons.mozilla.org/en-US/firefox/addon/multi-account-containers/)
 
-Explicit navigation to loopback, private/link-local IPs, single-label hostnames
-and recognized local suffixes grants the exact HTTP(S) origin to the current
-native network session. Ordinary tabs retain their shared profile; containers
-retain their isolated profile. Addresses entered without a scheme use HTTP for
-local IPs and dotted local names; explicit HTTPS is preserved. Single words
-remain search queries unless entered with a scheme or port. These session grants
-are additive, so opening another local tab does not revoke an existing one.
+An address the person chooses (typed in the address bar, picked from its
+suggestions, a bookmark, history or the start page) for loopback, private or
+link-local IPs, single-label hostnames or recognized local suffixes grants the
+exact HTTP(S) origin to the tab's container. Ordinary tabs retain their shared
+profile; containers retain their isolated profile. Addresses entered without a
+scheme use HTTP for local IPs and dotted local names; explicit HTTPS is
+preserved. Single words remain search queries unless entered with a scheme or
+port. Pages, popups, restored tabs and agents never create grants; their local
+addresses show the connection error page instead.
 
-For public names that resolve privately, Open address on the connection error
-page grants that exact origin in the current profile for the current run. It
-never creates a container. Grants are installed by browser navigation; webpage subresource requests do
-not create grants. Historical saved container grants remain scoped to their containers;
+For those, and for public names that resolve privately, Open address on the
+connection error page grants that exact origin in the tab's container. It never
+creates a container. A grant ends when no tab of its container in any window
+shows its origin; the container's network session then stops allowing it. Historical saved container grants remain scoped to their containers;
 private windows do not inherit them.
 
 ## Favicon loading

@@ -35,11 +35,27 @@ pub(crate) struct Windows {
     chooser: Option<crate::browser_profile::Chooser>,
     instance: Option<enzui_widgets::single_instance::SingleInstance>,
     apps: BTreeMap<window::Id, App>,
+    /// What each window allows its containers to reach locally; profiles
+    /// are shared between windows, so each window's sync includes the others'.
+    local_claims: BTreeMap<window::Id, Vec<crate::browser::local::Claim>>,
     preferences: serde_json::Value,
     /// The connection to the enzUI agent center, when the center provisioned
     /// the browser.
     #[cfg(feature = "center")]
     agent: Option<agent::Agent>,
+}
+impl Windows {
+    fn share_local_claims(&mut self) {
+        for (id, app) in &mut self.apps {
+            app.browser.local_elsewhere = self
+                .local_claims
+                .iter()
+                .filter(|(other, _)| *other != id)
+                .flat_map(|(_, claims)| claims.iter().cloned())
+                .collect();
+            app.sync_local_origins();
+        }
+    }
 }
 fn open() -> (window::Id, Task<Event>) {
     open_sized(iced::Size::new(1400., 900.))
@@ -86,6 +102,7 @@ impl Windows {
                     chooser: Some(chooser),
                     instance: None,
                     apps: BTreeMap::new(),
+                    local_claims: BTreeMap::new(),
                     preferences: serde_json::Value::Null,
                     #[cfg(feature = "center")]
                     agent: None,
@@ -107,6 +124,7 @@ impl Windows {
                 instance: crate::browser_profile::take_instance(),
                 preferences: preferences(&app.browser.saved),
                 apps: std::iter::once((id, app)).collect(),
+                local_claims: BTreeMap::new(),
                 #[cfg(feature = "center")]
                 agent: agent::Agent::start(),
             },
@@ -338,6 +356,9 @@ impl Windows {
                 {
                     app.browser.save();
                 }
+                if self.local_claims.remove(&id).is_some() {
+                    self.share_local_claims();
+                }
                 #[cfg(feature = "center")]
                 if self.apps.is_empty()
                     && let Some(agent) = self.agent.take()
@@ -379,6 +400,14 @@ impl Windows {
                 let task = app
                     .update(message)
                     .map(move |message| Event::App(id, message));
+                let claims = app.local_claims();
+                if self.local_claims.get(&id) != Some(&claims) {
+                    self.local_claims.insert(id, claims);
+                    self.share_local_claims();
+                }
+                let Some(app) = self.apps.get_mut(&id) else {
+                    return task;
+                };
                 let calls = std::mem::take(&mut app.assistant.calls);
                 let new_window = app.new_window.take();
                 let moved = app.moved_out.take();
@@ -826,6 +855,7 @@ mod tests {
                 chooser: None,
                 instance: None,
                 apps,
+                local_claims: BTreeMap::new(),
                 preferences: prefs,
                 #[cfg(feature = "center")]
                 agent: None,

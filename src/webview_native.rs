@@ -90,6 +90,7 @@ pub(crate) enum BrowserAction {
     NotificationClick(u64),
     NotificationClose(u64),
     DeveloperTools(bool),
+    /// Replaces the local destinations the view's profile may reach.
     LocalOrigins(Vec<String>),
     Fixture,
     Navigate(String),
@@ -4650,6 +4651,7 @@ mod real {
                             }
                             super::BrowserAction::LocalOrigins(origins) => {
                                 if let Some(list) = worker.session.local_origins() {
+                                    list.clear();
                                     for origin in origins {
                                         let _ = list.allow_origin(&origin);
                                     }
