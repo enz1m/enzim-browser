@@ -386,10 +386,10 @@ for as long as they are open.
 Settings → Browsing → **Save downloads to** chooses the folder downloads go
 to, for the tabs that are open and those opened later; **Default** returns to
 `Downloads`. With **Ask where to save each download** on, each
-download asks for its place and name while it loads; it is written in the
-downloads folder and moved to the chosen place when it is whole. Closing the
+download asks for its place and name while it loads; it is written in a
+private incoming folder and moved to the chosen place when it is whole. Closing the
 question gives the download up. PDFs that open in the browser are not asked
-about.
+about and are not kept: **Save to downloads** in the PDF toolbar keeps one.
 
 A window a page opens stays that page's window: `window.opener` works, the two
 can post messages to each other, and the window can close itself. A window the

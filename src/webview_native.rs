@@ -2955,17 +2955,8 @@ mod real {
             {
                 session.set_mock_capture_devices(true);
             }
-            let downloads = if std::env::var_os("ENZIM_QA").is_some() {
-                std::env::var_os("XDG_DATA_HOME")
-                    .map_or_else(
-                        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("work/overnight/qa/data"),
-                        PathBuf::from,
-                    )
-                    .join("enzim-browser/qa-downloads")
-            } else {
-                crate::downloads::folder()
-            };
-            std::fs::create_dir_all(&downloads).map_err(|e| format!("downloads: {e}"))?;
+            let downloads = crate::downloads::incoming();
+            crate::downloads::prepare_incoming(&downloads).map_err(|e| format!("downloads: {e}"))?;
             session
                 .set_download_directory(Some(downloads))
                 .map_err(|e| format!("downloads: {e}"))?;

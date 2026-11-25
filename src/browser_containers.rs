@@ -411,6 +411,8 @@ impl App {
                         .saved
                         .local_sites
                         .retain(|site| site.container != id);
+                    // Icons are kept by site for every container, so all of them go.
+                    self.browser.favicons.clear();
                     self.browser.toasts.done("Container and site data removed.");
                     if !cfg!(test) {
                         self.browser.save();

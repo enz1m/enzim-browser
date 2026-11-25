@@ -244,8 +244,20 @@ address to a third party: on the person's request it opens
 `translate.google.com/translate` with the address of the page on show. Nothing
 is sent otherwise, and nothing of the page's content is sent by the browser.
 
-The source of a page shown by **View page source** and the PDF of a page on
-its way to a printer are written under `$XDG_RUNTIME_DIR/enzim-browser`, in
-folders with mode 0700 and files with mode 0600. The source's file is named
-after the page's host only. The print file is removed when `lp` returns; the
-source stays until the session's runtime folder is cleared at logout.
+The source of a page shown by **View page source**, a Reader view, and the PDF
+of a page on its way to a printer are written under
+`$XDG_RUNTIME_DIR/enzim-browser`, in folders with mode 0700 and files with
+mode 0600. The source's file is named after the page's host only. The print
+file is removed when `lp` returns; a source or Reader copy is removed when the
+tab showing it closes, and with its window.
+
+The engine writes every download into a private incoming folder (mode 0700) in
+the profile's cache. A whole download then moves to the downloads folder under
+a free name, or to the place the person chose. A PDF that opens in a tab never
+leaves the incoming folder: it is removed when no tab shows it, when its window
+closes, or at the next start. **Save to downloads** in the PDF toolbar copies
+it to the downloads folder. With PDFs set to open in the system app, PDFs are
+kept like other downloads and open only when the person asks.
+
+Clearing history, clearing all site data, or removing a container also clears
+the browser's site icon cache, which is kept by site for every container.

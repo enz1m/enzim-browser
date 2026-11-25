@@ -45,6 +45,15 @@ impl Cache {
             image.into_raw(),
         ))
     }
+    /// Forgets every icon, on disk too.
+    pub(crate) fn clear(&self) {
+        self.entries.borrow_mut().clear();
+        if let Some(files) = self.directory.as_ref().and_then(|dir| std::fs::read_dir(dir).ok()) {
+            for file in files.flatten() {
+                let _ = std::fs::remove_file(file.path());
+            }
+        }
+    }
     fn remember(&self, origin: String, handle: Option<Handle>) {
         let mut entries = self.entries.borrow_mut();
         if entries.len() >= 2048 {

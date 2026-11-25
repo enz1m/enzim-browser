@@ -135,13 +135,17 @@ impl App {
         let (strong, muted) = (p.text, p.text_muted);
         let address = container(
             row![
+                // A long origin loses its start, never the registrable domain at its end.
                 text(origin)
                     .size(13)
                     .wrapping(iced::widget::text::Wrapping::None)
+                    .ellipsis(iced::widget::text::Ellipsis::Start)
                     .style(move |_| text::Style { color: Some(strong) }),
                 text(rest)
                     .size(13)
+                    .width(Length::Fill)
                     .wrapping(iced::widget::text::Wrapping::None)
+                    .ellipsis(iced::widget::text::Ellipsis::End)
                     .style(move |_| text::Style { color: Some(muted) }),
             ]
             .align_y(iced::Alignment::Center),

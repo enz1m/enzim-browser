@@ -24,6 +24,9 @@ pub(crate) enum PdfCommand {
     Rotate,
     Retry,
     OpenExternal,
+    /// Copies a PDF shown from the web into the downloads folder.
+    Save,
+    Saved(Result<(std::path::PathBuf, u64), String>),
     ExternalOpened {
         key: u64,
         path: std::path::PathBuf,
@@ -168,6 +171,53 @@ impl App {
                 self.browser.pdf_external_error = result.err().map(|error| (key, error));
             }
             return Task::none();
+        }
+        if let PdfCommand::Saved(result) = command {
+            match result {
+                Ok((path, bytes)) => {
+                    self.browser.toasts.done(format!(
+                        "Saved as {}.",
+                        path.file_name().map_or_else(String::new, |name| name.to_string_lossy().into_owned())
+                    ));
+                    self.browser.downloads.completed(path, bytes, String::new());
+                    if !cfg!(test) {
+                        self.browser.save();
+                    }
+                }
+                Err(error) => self.browser.toasts.error("pdf-save", error),
+            }
+            return Task::none();
+        }
+        if matches!(command, PdfCommand::Save) {
+            let key = self.browser.saved.tabs[self.browser.saved.active].key;
+            let Some(from) = self
+                .browser
+                .pdf
+                .as_ref()
+                .map(|p| p.path.clone())
+                .or_else(|| self.browser.pdf_requests.get(&key).map(|r| r.path.clone()))
+            else {
+                return Task::none();
+            };
+            return Task::perform(
+                async move {
+                    let (send, receive) = iced::futures::channel::oneshot::channel();
+                    std::thread::Builder::new()
+                        .name("save-pdf".into())
+                        .spawn(move || {
+                            let folder = crate::downloads::folder();
+                            let name = from.file_name().map_or_else(|| "document.pdf".into(), |name| name.to_string_lossy().into_owned());
+                            let saved = std::fs::create_dir_all(&folder).and_then(|()| {
+                                let to = crate::downloads::free_path(&folder, &name);
+                                crate::browser::save_place::copy_file(&from, &to, false).map(|bytes| (to, bytes))
+                            });
+                            let _ = send.send(saved.map_err(|error| format!("Could not save the PDF: {error}")));
+                        })
+                        .map_err(|e| e.to_string())?;
+                    receive.await.map_err(|_| "Saving the PDF was interrupted".to_owned())?
+                },
+                |result| c(Command::Pdf(PdfCommand::Saved(result))),
+            );
         }
         if matches!(command, PdfCommand::OpenExternal) {
             let key = self.browser.saved.tabs[self.browser.saved.active].key;
@@ -423,6 +473,11 @@ impl App {
                 .wrapping(iced::widget::text::Wrapping::None)
                 .ellipsis(iced::widget::text::Ellipsis::End)
                 .width(Length::Fill),
+            enzui_widgets::toolbar_icon::enz_toolbar_icon("download", c(Command::Pdf(PdfCommand::Save)))
+                .aria_label("Save to downloads")
+                .tooltip("Save to downloads")
+                .enabled(path.is_some_and(|path| path.starts_with(crate::downloads::incoming())))
+                .into_element(),
             enzui_widgets::toolbar_icon::enz_toolbar_icon(
                 "external-link",
                 c(Command::Pdf(PdfCommand::OpenExternal))

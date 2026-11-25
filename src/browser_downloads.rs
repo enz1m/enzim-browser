@@ -415,6 +415,9 @@ impl App {
                     && entry.is_pdf()
                     && !self.browser.saved.external_pdfs
                 {
+                    if let Some(entry) = self.browser.downloads.entries.iter_mut().find(|e| e.model.id.0 == id) {
+                        entry.shown = true;
+                    }
                     self.new_tab(String::new());
                     return self.open_pdf(path, Some(id));
                 }
@@ -774,7 +777,9 @@ fn download_actions(
                 DownloadCommand::OpenExternal(id),
             ));
         }
-        items.push(("Show in folder", "folder-open", DownloadCommand::Folder(id)));
+        if !entry.viewed {
+            items.push(("Show in folder", "folder-open", DownloadCommand::Folder(id)));
+        }
         items.push(("Remove from list", "list-x", DownloadCommand::Remove(id)));
     } else if !entry.pending {
         if entry.partial.is_some() && matches!(entry.model.phase, Phase::Paused | Phase::Failed) {

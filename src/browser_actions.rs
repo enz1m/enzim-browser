@@ -112,6 +112,11 @@ pub(crate) fn desktop_language(locale: Option<&str>) -> String {
         .to_owned()
 }
 
+pub(crate) fn next_copy_owner() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Where the text of a page's source is kept for its tab to show: in the
 /// session's runtime folder, which is in memory, is the person's alone and
 /// is emptied when they log out.
@@ -209,6 +214,29 @@ fn on_thread<T: Send + 'static>(
 }
 
 impl App {
+    /// Removes this window's page-source and reader copies that no tab
+    /// shows, or all of them with `all`.
+    pub(crate) fn discard_page_copies(&self, all: bool) {
+        if cfg!(test) {
+            return;
+        }
+        let Some(files) = source_folder().and_then(|folder| std::fs::read_dir(folder).ok()) else {
+            return;
+        };
+        let prefix = format!("w{}-", self.browser.copy_owner);
+        for file in files.flatten() {
+            if !file.file_name().to_string_lossy().starts_with(&prefix) {
+                continue;
+            }
+            let path = file.path();
+            let address = url::Url::from_file_path(&path).map(String::from);
+            let shown = !all && address.is_ok_and(|address| self.browser.saved.tabs.iter().any(|tab| tab.url == address));
+            if !shown {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
     /// Sends an action to a tab's view, on screen or not. `false` where the
     /// tab has no page loaded to take it.
     pub(super) fn tab_action(&mut self, index: usize, action: BrowserAction) -> bool {
@@ -354,6 +382,11 @@ impl App {
             }
             HardReload => self.submit_browser_action(BrowserAction::ReloadFresh),
             Save(url) => {
+                let saving = &mut self.browser.downloads.saving;
+                if saving.len() >= 16 {
+                    saving.remove(0);
+                }
+                saving.push(url.clone());
                 let (job, receiver) = crate::native_jobs::Job::new();
                 self.submit_browser_action(BrowserAction::DownloadUrl { url, job });
                 return Task::perform(crate::native_jobs::receive(receiver), |result| {
@@ -434,9 +467,10 @@ impl App {
                 });
             }
             Source(Ok(source)) => {
-                let name = source_name(
-                    &self.browser.saved.tabs[self.browser.saved.active].url,
-                    next_tab_key(),
+                let name = format!(
+                    "w{}-{}",
+                    self.browser.copy_owner,
+                    source_name(&self.browser.saved.tabs[self.browser.saved.active].url, next_tab_key())
                 );
                 match write_source(&name, &source) {
                     Ok(address) => self.new_tab(address),
@@ -477,6 +511,7 @@ impl App {
                 )
                 .replacen("source-of-", "reading-", 1)
                 .replace(".txt", ".html");
+                let name = format!("w{}-{name}", self.browser.copy_owner);
                 match write_source(&name, &page) {
                     Ok(address) => self.new_tab(address),
                     Err(error) => self.browser.toasts.error("reader", error),

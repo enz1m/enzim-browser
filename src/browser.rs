@@ -523,6 +523,8 @@ pub(crate) struct Browser {
     pub(crate) pdf_external_error: Option<(u64, String)>,
     pub(crate) pdf_requests: std::collections::BTreeMap<u64, crate::browser_pdf::Request>,
     pub(crate) favicons: crate::favicons::Cache,
+    /// Marks this window's page-source and reader copies.
+    pub(crate) copy_owner: u64,
     pub(crate) maintenance: Vec<containers::Cleanup>,
     pub(crate) container_edit: Option<u64>,
     pub(crate) container_editor_open: bool,
@@ -728,6 +730,7 @@ impl Browser {
             pdf_external_error: None,
             history_store,
             favicons: crate::favicons::Cache::new(private),
+            copy_owner: actions::next_copy_owner(),
             history_ready,
             maintenance: Vec::new(),
             container_edit: None,
@@ -1539,6 +1542,8 @@ impl App {
                             self.browser.saved.active -= 1;
                         }
                     }
+                    self.sync_local_origins();
+                    self.discard_page_copies(false);
                 }
                 self.browser.panel = crate::browser::Panel::None;
             }
@@ -1887,7 +1892,11 @@ impl App {
             HistoryClearConfirm => {
                 if let Some((filter, start, _)) = self.browser.history_cleanup.take() {
                     match self.browser.history_store.clear(&filter, start) {
-                        Ok(n) => self.browser.toasts.done(format!("Removed {n} visits")),
+                        // Icons are kept by site, not visit, so a cleared visit's site icon goes too.
+                        Ok(n) => {
+                            self.browser.favicons.clear();
+                            self.browser.toasts.done(format!("Removed {n} visits"));
+                        }
                         Err(e) => self.browser.toasts.error("history", e),
                     }
                 }

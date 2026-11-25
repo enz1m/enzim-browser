@@ -18,9 +18,49 @@ pub(crate) fn folder() -> PathBuf {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone()
         .unwrap_or_else(|| {
+            if std::env::var_os("ENZIM_QA").is_some() {
+                return std::env::var_os("XDG_DATA_HOME")
+                    .map_or_else(
+                        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("work/overnight/qa/data"),
+                        PathBuf::from,
+                    )
+                    .join("enzim-browser/qa-downloads");
+            }
             PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
                 .join("Downloads")
         })
+}
+
+/// The private folder the engine writes downloads into. A download leaves it
+/// for the downloads folder once whole; a PDF shown in a tab never does.
+pub(crate) fn incoming() -> PathBuf {
+    crate::browser_profile::paths().cache.join("incoming-downloads")
+}
+
+/// Creates the incoming folder for the owner alone. What an earlier run left
+/// there is removed once: shown PDFs and downloads cut short, which may be a
+/// private window's, are not kept.
+pub(crate) fn prepare_incoming(folder: &std::path::Path) -> std::io::Result<()> {
+    use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _};
+    static EMPTIED: std::sync::Once = std::sync::Once::new();
+    EMPTIED.call_once(|| {
+        for file in std::fs::read_dir(folder).into_iter().flatten().flatten() {
+            let _ = std::fs::remove_file(file.path());
+        }
+    });
+    std::fs::DirBuilder::new().recursive(true).mode(0o700).create(folder)?;
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o700))
+}
+
+/// A path in `folder` for `name` that names no file yet.
+pub(crate) fn free_path(folder: &std::path::Path, name: &str) -> PathBuf {
+    let name = std::path::Path::new(name);
+    let stem = name.file_stem().map_or_else(|| "Download".into(), |stem| stem.to_string_lossy().into_owned());
+    let extension = name.extension().map(|extension| format!(".{}", extension.to_string_lossy())).unwrap_or_default();
+    (0..)
+        .map(|n| folder.join(if n == 0 { format!("{stem}{extension}") } else { format!("{stem} ({n}){extension}") }))
+        .find(|path| std::fs::symlink_metadata(path).is_err())
+        .unwrap_or_else(|| folder.join(name))
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -34,9 +74,11 @@ pub(crate) struct Archive {
 /// Where a download is kept once it is whole.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) enum Place {
-    /// Where the engine wrote it, in the downloads folder.
+    /// Where it stays: where the engine wrote it until it is placed.
     #[default]
     Folder,
+    /// Into the downloads folder under a free name, once whole.
+    ToFolder,
     /// The person is being asked.
     Asking,
     /// Where the person said.
@@ -46,6 +88,12 @@ pub(crate) enum Place {
 }
 pub(crate) struct Entry {
     pub(crate) place: Place,
+    /// A PDF for a tab, kept privately and removed when no tab shows it.
+    pub(crate) viewed: bool,
+    /// Its PDF was opened in a tab.
+    pub(crate) shown: bool,
+    /// The person asked to save it, rather than a page to show it.
+    pub(crate) requested: bool,
     /// Whether the question of its place was settled, asked or not.
     pub(crate) placed: bool,
     pub(crate) model: Download,
@@ -102,6 +150,8 @@ pub(crate) struct Store {
     pub(crate) entries: Vec<Entry>,
     next: u64,
     pub(crate) cancel_native: Vec<(enzui_webkit::web::ViewId, PageRequestId)>,
+    /// Addresses the person chose to save, until their download starts.
+    pub(crate) saving: Vec<String>,
 }
 impl Store {
     pub(crate) fn ready_to_open(&mut self) -> Vec<u64> {
@@ -113,7 +163,7 @@ impl Store {
                     // Not before it is where it stays.
                     || entry.place != Place::Folder
                     || entry.auto_opened
-                    || (!entry.open_when_finished && !entry.is_pdf())
+                    || (!entry.open_when_finished && !entry.viewed)
                 {
                     return None;
                 }
@@ -136,7 +186,7 @@ impl Store {
     pub(crate) fn archive(&self) -> Vec<Archive> {
         self.entries
             .iter()
-            .filter(|e| e.model.phase == Phase::Complete)
+            .filter(|e| e.model.phase == Phase::Complete && !e.viewed)
             .filter_map(|e| {
                 Some(Archive {
                     path: e.path.clone()?,
@@ -159,10 +209,17 @@ impl Store {
         self.entries.push(entry);
         self.trim();
     }
+    fn claim_saving(&mut self, url: &str) -> bool {
+        let at = self.saving.iter().position(|saving| saving == url);
+        at.map(|at| self.saving.remove(at)).is_some()
+    }
     fn fresh(&mut self, owner: Option<enzui_webkit::web::ViewId>, url: String) -> Entry {
         self.next = self.next.wrapping_add(1).max(1);
         Entry {
             place: Place::Folder,
+            viewed: false,
+            shown: false,
+            requested: false,
             placed: false,
             model: Download::queued(DownloadId(self.next)),
             owner,
@@ -195,11 +252,29 @@ impl Store {
                 continue;
             }
             entry.placed = true;
-            let kept = entry.active() || entry.model.phase == Phase::Complete;
-            if ask && kept && !(shown_pdfs && entry.is_pdf()) {
+            if !entry.active() && entry.model.phase != Phase::Complete {
+                continue;
+            }
+            if shown_pdfs && entry.is_pdf() && !entry.requested {
+                entry.viewed = true;
+            } else if ask {
                 entry.place = Place::Asking;
+            } else {
+                entry.place = Place::ToFolder;
             }
         }
+    }
+    /// Takes the shown PDFs no tab shows any more, for their files to be removed.
+    pub(crate) fn unviewed(&mut self, showing: impl Fn(&std::path::Path) -> bool) -> Vec<PathBuf> {
+        let mut gone = Vec::new();
+        self.entries.retain(|entry| {
+            let unused = entry.viewed && entry.shown && entry.path.as_deref().is_some_and(|path| !showing(path));
+            if unused {
+                gone.extend(entry.path.clone());
+            }
+            !unused
+        });
+        gone
     }
     /// The download the person is asked about next, and the name it has.
     pub(crate) fn next_ask(&self) -> Option<(u64, String)> {
@@ -208,19 +283,21 @@ impl Store {
             .find(|entry| entry.place == Place::Asking)
             .map(|entry| (entry.model.id.0, entry.name.clone()))
     }
-    /// The whole downloads that have a place to go to, as (id, from, to);
-    /// each is handed out once.
-    pub(crate) fn ready_to_move(&mut self) -> Vec<(u64, PathBuf, PathBuf)> {
+    /// The whole downloads that have a place to go to, as (id, from, to,
+    /// whether a file at `to` is replaced); each is handed out once.
+    pub(crate) fn ready_to_move(&mut self) -> Vec<(u64, PathBuf, PathBuf, bool)> {
         self.entries
             .iter_mut()
             .filter_map(|entry| {
                 if entry.model.phase != Phase::Complete || entry.pending {
                     return None;
                 }
-                let Place::Chosen(to) = &entry.place else {
-                    return None;
+                let from = entry.path.clone()?;
+                let moved = match &entry.place {
+                    Place::Chosen(to) => (entry.model.id.0, from, to.clone(), true),
+                    Place::ToFolder => (entry.model.id.0, from, free_path(&folder(), &entry.name), false),
+                    _ => return None,
                 };
-                let moved = (entry.model.id.0, entry.path.clone()?, to.clone());
                 entry.place = Place::Moving;
                 Some(moved)
             })
@@ -257,6 +334,7 @@ impl Store {
                     Some(at) => self.entries.remove(at),
                     None => self.fresh(Some(owner), url.as_str().into()),
                 };
+                entry.requested |= self.claim_saving(url.as_str());
                 entry.native = Some(*id);
                 entry.model.phase = Phase::Queued;
                 entry.pending = false;
@@ -288,6 +366,7 @@ impl Store {
                     }
                     None => self.fresh(Some(owner), url.as_str().into()),
                 };
+                entry.requested |= self.claim_saving(url.as_str());
                 entry.native = Some(*id);
                 entry.name = file_name(path);
                 entry.path = Some(path.clone());
@@ -837,6 +916,7 @@ mod opening_tests {
         let mut pdf = store.fresh(None, "https://example.org/document.pdf".into());
         pdf.name = "document.pdf".into();
         pdf.path = Some("/tmp/document.pdf".into());
+        pdf.viewed = true;
         let id = pdf.model.id.0;
         store.entries.push(pdf);
         assert!(store.ready_to_open().is_empty());

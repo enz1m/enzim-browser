@@ -334,6 +334,12 @@ impl Windows {
                 let regular = self.apps.get(&id).is_some_and(|app| !app.browser.private);
                 let mut retire = Task::none();
                 if let Some(mut app) = self.apps.remove(&id) {
+                    for entry in app.browser.downloads.entries.iter().filter(|entry| entry.viewed) {
+                        if let Some(path) = &entry.path {
+                            let _ = std::fs::remove_file(path);
+                        }
+                    }
+                    app.discard_page_copies(true);
                     app.browser.save();
                     if let Some(shutdown) = app.browser.desktop_notifications.shutdown() {
                         self.retiring_notifications += 1;

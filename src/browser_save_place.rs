@@ -1,6 +1,6 @@
-//! Asking where a download is saved. The engine writes every download into
-//! the downloads folder under a fresh name of its own making; a download the
-//! person gave a place is moved there once it is whole.
+//! Where a download is saved. The engine writes every download into a
+//! private incoming folder; once whole it moves to the place the person gave
+//! or to the downloads folder. A PDF shown in a tab stays private.
 
 use super::*;
 use crate::downloads::Place;
@@ -10,26 +10,44 @@ use std::path::{Path, PathBuf};
 /// is the download's.
 pub(super) const PLACE_TAG: u64 = u64::MAX - 8;
 
-/// Moves a whole download to the place chosen for it. The chooser asked
-/// before naming a file that is there, so one in the way is replaced.
-pub(crate) fn move_download(from: &Path, to: &Path) -> Result<(), String> {
+/// Moves a whole download to its place. The chooser asked before naming a
+/// file that is there, so with `replace` one in the way is replaced.
+pub(crate) fn move_download(from: &Path, to: &Path, replace: bool) -> Result<(), String> {
     let failed = |error: std::io::Error| format!("Could not save to {}: {error}", to.display());
-    match std::fs::rename(from, to) {
+    if let Some(folder) = to.parent() {
+        std::fs::create_dir_all(folder).map_err(failed)?;
+    }
+    let renamed = if replace {
+        std::fs::rename(from, to)
+    } else {
+        rustix::fs::renameat_with(rustix::fs::CWD, from, rustix::fs::CWD, to, rustix::fs::RenameFlags::NOREPLACE)
+            .map_err(std::io::Error::from)
+    };
+    match renamed {
         Ok(()) => Ok(()),
         // Another disk: copied there, then removed here.
         Err(error) if error.kind() == std::io::ErrorKind::CrossesDevices => {
-            if let Err(error) = std::fs::copy(from, to) {
+            if let Err(error) = copy_file(from, to, replace) {
                 // Half a file under the chosen name is worse than none.
-                let _ = std::fs::remove_file(to);
+                if error.kind() != std::io::ErrorKind::AlreadyExists {
+                    let _ = std::fs::remove_file(to);
+                }
                 return Err(failed(error));
             }
-            // What stays behind in the downloads folder is a second copy,
-            // not a loss.
             let _ = std::fs::remove_file(from);
             Ok(())
         }
         Err(error) => Err(failed(error)),
     }
+}
+
+/// Copies `from` to `to`; without `replace`, only to a name no file has.
+pub(crate) fn copy_file(from: &Path, to: &Path, replace: bool) -> std::io::Result<u64> {
+    let mut source = std::fs::File::open(from)?;
+    let mut target = std::fs::OpenOptions::new().write(true).create(true).truncate(true).create_new(!replace).open(to)?;
+    let bytes = std::io::copy(&mut source, &mut target)?;
+    target.sync_all()?;
+    Ok(bytes)
 }
 
 impl App {
@@ -64,12 +82,30 @@ impl App {
                 }
             }
         }
-        for (id, from, to) in self.browser.downloads.ready_to_move() {
+        for (id, from, to, replace) in self.browser.downloads.ready_to_move() {
             changed = true;
             self.pending_tasks.push(Task::perform(
-                async move { move_download(&from, &to).map(|()| to) },
+                async move { move_download(&from, &to, replace).map(|()| to) },
                 move |result| c(Command::Download(DownloadCommand::Placed(id, result))),
             ));
+        }
+        changed |= self.discard_unviewed_pdfs();
+        changed
+    }
+
+    /// Removes the private files of shown PDFs that no tab shows any more.
+    pub(crate) fn discard_unviewed_pdfs(&mut self) -> bool {
+        let mut showing: Vec<&Path> = self.browser.pdf.iter().map(|page| page.path.as_path()).collect();
+        showing.extend(self.browser.pdf_requests.values().map(|request| request.path.as_path()));
+        showing.extend(self.browser.pdf_prefetch.iter().map(|(_, request)| request.path.as_path()));
+        showing.extend(self.browser.sleeping.iter().flatten().filter_map(|tab| tab.pdf.as_ref()).map(|page| page.path.as_path()));
+        let showing: Vec<PathBuf> = showing.into_iter().map(Path::to_path_buf).collect();
+        let gone = self.browser.downloads.unviewed(|path| showing.iter().any(|shown| shown == path));
+        let changed = !gone.is_empty();
+        if !cfg!(test) {
+            for path in gone {
+                let _ = std::fs::remove_file(path);
+            }
         }
         changed
     }
@@ -138,7 +174,7 @@ impl App {
                 );
                 entry.path = Some(path);
             }
-            // It is whole and still in the downloads folder: say so there.
+            // It is whole and still in the incoming folder: say so there.
             Err(error) => {
                 entry.error.clone_from(&error);
                 self.browser.toasts.error("downloads", error);
@@ -221,11 +257,37 @@ mod tests {
         assert!(store.ready_to_open().is_empty());
         assert_eq!(
             store.ready_to_move(),
-            [(second, PathBuf::from("/downloads/b.zip"), PathBuf::from("/home/me/b.zip"))]
+            [(second, PathBuf::from("/downloads/b.zip"), PathBuf::from("/home/me/b.zip"), true)]
         );
         // Handed out once.
         assert!(store.ready_to_move().is_empty());
         let _ = first;
+    }
+
+    #[test]
+    fn a_shown_pdf_stays_private_until_no_tab_shows_it_and_other_files_reach_the_folder() {
+        let mut store = crate::downloads::Store::default();
+        let shown = started(&mut store, 1, "paper.pdf");
+        store.saving.push("https://files.example/kept.pdf".into());
+        let kept = started(&mut store, 2, "kept.pdf");
+        let archive = started(&mut store, 3, "archive.zip");
+        store.note_places(false, true);
+        for (id, name) in [(1, "paper.pdf"), (2, "kept.pdf"), (3, "archive.zip")] {
+            finish(&mut store, id, name);
+        }
+        let place = |store: &crate::downloads::Store, id| store.entries.iter().find(|e| e.model.id.0 == id).expect("entry").place.clone();
+        assert_eq!(place(&store, shown), Place::Folder);
+        assert_eq!(place(&store, kept), Place::ToFolder, "a PDF the person saved is kept");
+        assert_eq!(place(&store, archive), Place::ToFolder);
+        let moved: Vec<_> = store.ready_to_move().into_iter().map(|(id, _, to, replace)| (id, to.starts_with(crate::downloads::folder()), replace)).collect();
+        assert_eq!(moved, [(kept, true, false), (archive, true, false)]);
+        assert!(store.archive().iter().all(|saved| saved.path != Path::new("/downloads/paper.pdf")));
+
+        assert!(store.unviewed(|_| false).is_empty(), "not removed before a tab showed it");
+        store.entries.iter_mut().find(|e| e.model.id.0 == shown).expect("entry").shown = true;
+        assert!(store.unviewed(|path| path == Path::new("/downloads/paper.pdf")).is_empty());
+        assert_eq!(store.unviewed(|_| false), [PathBuf::from("/downloads/paper.pdf")]);
+        assert!(store.entries.iter().all(|e| e.model.id.0 != shown));
     }
 
     #[test]
@@ -268,11 +330,11 @@ mod tests {
         let (from, to) = (dir.join("from.bin"), dir.join("to.bin"));
         std::fs::write(&from, b"new").expect("from");
         std::fs::write(&to, b"old").expect("to");
-        move_download(&from, &to).expect("move");
+        move_download(&from, &to, true).expect("move");
         assert_eq!(std::fs::read(&to).expect("read"), b"new");
         assert!(!from.exists());
         // Nothing to move: an error that names the place, and no file made.
-        let error = move_download(&from, &dir.join("none.bin")).expect_err("missing");
+        let error = move_download(&from, &dir.join("none.bin"), true).expect_err("missing");
         assert!(error.contains("none.bin"), "{error}");
         assert!(!dir.join("none.bin").exists());
         let _ = std::fs::remove_dir_all(&dir);

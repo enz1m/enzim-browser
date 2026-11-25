@@ -134,6 +134,7 @@ impl App {
                     let action = if let Some(keys) = keys {
                         BrowserAction::DeleteCookies { keys, job }
                     } else {
+                        self.browser.favicons.clear();
                         BrowserAction::ClearDataJob {
                             data: enzui_webkit::page::WebsiteData::ALL,
                             job,
