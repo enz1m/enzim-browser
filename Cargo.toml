@@ -135,8 +135,8 @@ format_push_string = "warn"
 redundant_type_annotations = "warn"
 
 [workspace.dependencies]
-enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "e7fd0c9e16b22d9a83c1578b8e74662e1cbc7add" }
-enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "e7fd0c9e16b22d9a83c1578b8e74662e1cbc7add" }
+enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "0df9c0976b89153bdefa361759ec78be99e44784" }
+enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "0df9c0976b89153bdefa361759ec78be99e44784" }
 enzui-security = { git = "https://github.com/enz1m/enzui.git", rev = "0ed41783775a9bf1b431a7f5b57f782e30210552" }
 enzui-activity = { git = "https://github.com/enz1m/enzui.git", rev = "0ed41783775a9bf1b431a7f5b57f782e30210552", default-features = false }
 enzui-clipboard-runtime = { git = "https://github.com/enz1m/enzui.git", rev = "0ed41783775a9bf1b431a7f5b57f782e30210552", default-features = false }
