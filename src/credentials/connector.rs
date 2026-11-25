@@ -382,23 +382,23 @@ impl Connector {
                 }
                 let mut input = Zeroizing::new(code.as_bytes().to_vec());
                 input.push(b'\n');
-                // The official interactive prompt reads the code from its private stdin pipe, never argv.
+                // The interactive prompt reads the code from stdin, so the
+                // password comes through a second pipe, never argv or the environment.
+                let passwordfile = password_pipe(&password)?;
+                let passwordfile_path = format!("/dev/fd/{}", std::os::fd::AsRawFd::as_raw_fd(&passwordfile));
                 self.run_with_env(
                     &[
                         "login",
                         &self.connection.account,
-                        "--passwordenv",
-                        "ENZIM_BITWARDEN_PASSWORD",
+                        "--passwordfile",
+                        &passwordfile_path,
                         "--method",
                         "0",
                         "--raw",
                     ],
                     Some(input),
                     Duration::from_secs(90),
-                    &[
-                        ("ENZIM_BITWARDEN_PASSWORD", authentication.password.expose()),
-                        ("BW_NOINTERACTION", "false"),
-                    ],
+                    &[("BW_NOINTERACTION", "false")],
                 )?
             } else {
                 self.run(
@@ -872,6 +872,22 @@ fn with_scheme(pattern: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
+/// A pipe holding `password`, already closed for writing, whose read end the
+/// next spawned child inherits; dropping it closes the read end here.
+fn password_pipe(password: &[u8]) -> Result<std::os::fd::OwnedFd> {
+    use std::io::Write as _;
+    // Larger writes could block on a full pipe before the child reads it.
+    if password.len() > 4096 {
+        return Err("This master password is too long for the Bitwarden connector.".into());
+    }
+    let pipe = || -> std::io::Result<std::os::fd::OwnedFd> {
+        let (read, write) = rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC)?;
+        std::fs::File::from(write).write_all(password)?;
+        rustix::io::fcntl_setfd(&read, rustix::io::FdFlags::empty())?;
+        Ok(read)
+    };
+    pipe().map_err(|_| "The password could not be handed to the Bitwarden connector.".into())
+}
 fn bitwarden_error(stderr: &[u8]) -> String {
     let contains = |text: &str| {
         stderr
