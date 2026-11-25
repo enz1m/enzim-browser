@@ -410,7 +410,7 @@ mod tests {
         );
         assert!(app.browser.permission_denied.contains(&app.denial(&request(2, PermissionKind::Camera))));
         let screen = request(3, PermissionKind::ScreenCapture);
-        app.browser.permission = Some(screen.clone());
+        app.browser.permission = Some(screen);
         app.browser.panel = Panel::Permissions;
         let _ = app.update(c(Command::Dismiss));
         assert!(
