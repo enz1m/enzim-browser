@@ -74,7 +74,8 @@ systemd-run --user --scope -p MemoryMax=3G -p MemorySwapMax=0 -- \
 Use a tagged Browser checkout. The manifest verifies the release snapshot of the
 locked Rust sources and pinned connector assets before the offline build. The
 package installs its own credential guard and uses the shared Platform for the
-engine library and its subprocesses.
+engine library and its subprocesses. It builds Poppler's PDF tools and runs
+them in a separate Flatpak sandbox with networking disabled.
 
 ## Focused checks
 

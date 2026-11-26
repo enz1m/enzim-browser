@@ -18,5 +18,9 @@
   pinned in `assets/connectors/bitwarden.json` and prepared outside Git.
   License texts and notices are in `assets/connectors/bitwarden/`; binary
   distributions must include the prepared bundle's source and notices.
+- Poppler: the Linux desktop build runs the system `pdfinfo` and `pdftoppm`
+  tools. The Flatpak builds these tools from the [Poppler release](https://poppler.freedesktop.org/)
+  and includes Poppler encoding data. Its `share/doc/enzim-browser/` directory
+  contains the Poppler source archive and the notices for both inputs.
 - Other Rust dependencies retain the licenses declared by their packages and
   pinned in `Cargo.lock`.

@@ -1,0 +1,16 @@
+{
+  "name": "poppler-data",
+  "buildsystem": "simple",
+  "build-commands": [
+    "make install prefix=/app",
+    "install -Dm644 -t /app/share/doc/enzim-browser/poppler-data COPYING COPYING.adobe COPYING.gpl2"
+  ],
+  "cleanup": ["/share/pkgconfig"],
+  "sources": [
+    {
+      "type": "archive",
+      "url": "https://poppler.freedesktop.org/poppler-data-0.4.12.tar.gz",
+      "sha256": "c835b640a40ce357e1b83666aabd95edffa24ddddd49b8daff63adb851cdab74"
+    }
+  ]
+}

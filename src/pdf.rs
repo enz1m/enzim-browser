@@ -112,13 +112,32 @@ impl Drop for Scratch {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
+#[derive(Clone, Copy)]
+enum PdfTool {
+    Info,
+    Render,
+}
+impl PdfTool {
+    fn executable(self) -> &'static str {
+        match self {
+            Self::Info => "pdfinfo",
+            Self::Render => "pdftoppm",
+        }
+    }
+}
+const PARSER_LIMITS: [&str; 3] = ["--as=1610612736", "--cpu=20", "--fsize=67108864"];
+
 fn parser(
-    program: &str,
+    tool: PdfTool,
     path: &Path,
     cache: &Path,
     args: &[String],
 ) -> Result<std::process::Output, String> {
-    std::process::Command::new("bwrap")
+    if Path::new("/.flatpak-info").is_file() {
+        return flatpak_parser(tool, path, cache, args);
+    }
+    let mut command = std::process::Command::new("bwrap");
+    command
         .args([
             "--die-with-parent",
             "--unshare-all",
@@ -167,15 +186,54 @@ fn parser(
             "LD_PRELOAD",
             "--",
             "/usr/bin/prlimit",
-            "--as=1610612736",
-            "--cpu=20",
-            "--fsize=67108864",
-            "--",
-            program,
         ])
+        .args(PARSER_LIMITS)
+        .arg("--")
+        .arg(Path::new("/usr/bin").join(tool.executable()))
         .args(args)
-        .output()
-        .map_err(|e| format!("PDF sandbox: {e}"))
+        .arg("/document.pdf");
+    if matches!(tool, PdfTool::Render) {
+        command.arg("/output/page");
+    }
+    command.output().map_err(|e| format!("PDF sandbox: {e}"))
+}
+
+fn flatpak_parser(
+    tool: PdfTool,
+    path: &Path,
+    cache: &Path,
+    args: &[String],
+) -> Result<std::process::Output, String> {
+    use std::fs::File;
+    use std::process::{Command, Stdio};
+
+    let input = File::open(path).map_err(|e| e.to_string())?;
+    let mut command = Command::new("/usr/bin/flatpak-spawn");
+    command
+        .args([
+            "--sandbox",
+            "--no-network",
+            "--watch-bus",
+            "--clear-env",
+            "--directory=/",
+            "--env=HOME=/tmp",
+            "--env=XDG_CACHE_HOME=/tmp",
+            "--env=LC_ALL=C",
+            "/usr/bin/prlimit",
+        ])
+        .args(PARSER_LIMITS)
+        .arg("--")
+        .arg(Path::new("/app/libexec/enzim-browser").join(tool.executable()))
+        .args(args)
+        .arg("-")
+        .stdin(input);
+
+    // The renderer receives the document and raster through file descriptors.
+    if matches!(tool, PdfTool::Render) {
+        let raster = File::create_new(cache.join("page.ppm")).map_err(|e| e.to_string())?;
+        command.stdout(Stdio::from(raster));
+    }
+    command.output().map_err(|e| format!("PDF sandbox: {e}"))
 }
 fn parser_error(output: &std::process::Output) -> String {
     if String::from_utf8_lossy(&output.stderr)
@@ -256,7 +314,7 @@ pub(crate) fn render_cached(
         .map_err(|e| e.to_string())?;
     let requested = number.max(1);
     let mut info = parser(
-        "/usr/bin/pdfinfo",
+        PdfTool::Info,
         &path,
         &scratch.0,
         &[
@@ -264,16 +322,10 @@ pub(crate) fn render_cached(
             requested.to_string(),
             "-l".into(),
             requested.to_string(),
-            "/document.pdf".into(),
         ],
     )?;
     if !info.status.success() && requested > 1 {
-        info = parser(
-            "/usr/bin/pdfinfo",
-            &path,
-            &scratch.0,
-            &["/document.pdf".into()],
-        )?;
+        info = parser(PdfTool::Info, &path, &scratch.0, &[])?;
     }
     if !info.status.success() {
         return Err(parser_error(&info));
@@ -289,7 +341,7 @@ pub(crate) fn render_cached(
     let number = requested.min(count);
     let geometry = if requested > count && number > 1 {
         parser(
-            "/usr/bin/pdfinfo",
+            PdfTool::Info,
             &path,
             &scratch.0,
             &[
@@ -297,7 +349,6 @@ pub(crate) fn render_cached(
                 number.to_string(),
                 "-l".into(),
                 number.to_string(),
-                "/document.pdf".into(),
             ],
         )?
     } else {
@@ -317,7 +368,7 @@ pub(crate) fn render_cached(
         .filter(|(w, h)| w.is_finite() && h.is_finite() && *w > 0. && *h > 0.)
         .unwrap_or((595., 842.));
     let result = parser(
-        "/usr/bin/pdftoppm",
+        PdfTool::Render,
         &path,
         &scratch.0,
         &[
@@ -326,8 +377,6 @@ pub(crate) fn render_cached(
             "-singlefile".into(),
             "-scale-to".into(),
             raster.to_string(),
-            "/document.pdf".into(),
-            "/output/page".into(),
         ],
     )?;
     if !result.status.success() {

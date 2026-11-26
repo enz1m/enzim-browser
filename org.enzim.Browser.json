@@ -25,6 +25,8 @@
     }
   },
   "modules": [
+    "packaging/flatpak/poppler-data.json",
+    "packaging/flatpak/poppler.json",
     {
       "name": "browser",
       "buildsystem": "simple",
