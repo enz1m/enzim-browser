@@ -3577,10 +3577,10 @@ impl App {
                     "Documents & privacy",
                     column![
                         enzui_widgets::preferences_row::enz_preferences_row(
-                            "Open PDFs in the browser"
+                            "Preview PDFs automatically"
                         )
                         .icon("file-text")
-                        .subtitle("When off, downloaded PDFs open with your default system app.")
+                        .subtitle("When off, PDFs from websites are downloaded. Choose Open in system app to hand off a PDF.")
                         .switch(!self.browser.saved.external_pdfs, |value| c(
                             Command::ExternalPdfs(!value)
                         ))

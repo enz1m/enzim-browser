@@ -410,13 +410,16 @@ impl App {
                 };
                 let folder = matches!(command, DownloadCommand::Folder(_));
                 self.browser.panel = Panel::None;
-                if !folder
-                    && !matches!(command, DownloadCommand::OpenExternal(_))
-                    && entry.is_pdf()
-                    && !self.browser.saved.external_pdfs
+                if !folder && !matches!(command, DownloadCommand::OpenExternal(_)) && entry.is_pdf()
                 {
-                    if let Some(entry) = self.browser.downloads.entries.iter_mut().find(|e| e.model.id.0 == id) {
-                        entry.shown = true;
+                    if let Some(entry) = self
+                        .browser
+                        .downloads
+                        .entries
+                        .iter_mut()
+                        .find(|e| e.model.id.0 == id)
+                    {
+                        entry.shown = entry.viewed;
                     }
                     self.new_tab(String::new());
                     return self.open_pdf(path, Some(id));
@@ -838,4 +841,26 @@ pub(crate) fn open_download(path: std::path::PathBuf, folder: bool) -> Result<()
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     Err("The desktop did not respond to the file request".into())
+}
+
+#[cfg(test)]
+mod pdf_open_tests {
+    use super::*;
+
+    #[test]
+    fn a_pdf_open_command_uses_the_viewer_even_when_auto_preview_is_off() {
+        let mut app = browser_tests::app();
+        app.browser.saved.external_pdfs = true;
+        let path = std::path::PathBuf::from("/tmp/browser-test.pdf");
+        app.browser
+            .downloads
+            .completed(path.clone(), 16, String::new());
+        let id = app.browser.downloads.entries[0].model.id.0;
+        drop(app.download_command(DownloadCommand::Open(id)));
+        let key = app.browser.saved.tabs[app.browser.saved.active].key;
+        assert_eq!(
+            app.browser.pdf_requests.get(&key).map(|pdf| &pdf.path),
+            Some(&path)
+        );
+    }
 }
