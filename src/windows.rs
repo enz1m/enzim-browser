@@ -931,7 +931,7 @@ mod tests {
             .expect("normal browser window");
         assert_eq!(app.window_id, Some(*id));
         assert!(app.welcome.is_none());
-        assert_eq!(app.address, "https://browser.enzim.dev/");
+        assert_eq!(app.address, "", "setup finishes on the built-in New Tab page");
         assert_eq!(app.browser.saved.search.selected, "google");
     }
     #[test]

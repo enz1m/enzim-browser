@@ -573,7 +573,7 @@ impl App {
                     return task;
                 }
                 return self.browser_command(BrowserCommand::Navigate(
-                    "https://browser.enzim.dev/".into(),
+                    "enzim://newtab".into(),
                 ));
             }
         }
@@ -606,7 +606,7 @@ mod tests {
                 app.browser.library.is_none(),
                 "finish must leave internal pages"
             );
-            assert_eq!(app.address, "https://browser.enzim.dev/");
+            assert_eq!(app.address, "", "setup finishes on the built-in New Tab page");
         }
     }
 
