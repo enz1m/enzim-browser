@@ -28,6 +28,19 @@ enum Stage {
     Working(Option<serde_json::Value>),
 }
 
+fn registration_excluded(pending: &Pending, catalog: &[credentials::provider::Summary]) -> bool {
+    let Wanted::Create { exclude, .. } = &pending.request.operation else {
+        return false;
+    };
+    catalog.iter().any(|entry| {
+        entry.site.container == pending.container
+            && entry.passkey.as_ref().is_some_and(|(rp, id)| {
+                rp == &pending.request.rp_id
+                    && credentials::passkey::credential_id_matches(exclude, id)
+            })
+    })
+}
+
 impl App {
     fn passkey_answer(
         &mut self,
@@ -161,22 +174,7 @@ impl App {
                     .is_some_and(|(rp, _)| *rp == pending.request.rp_id)
         };
         match &pending.request.operation {
-            Wanted::Create { exclude, .. } => {
-                let excluded = state.catalog.iter().filter(held).any(|entry| {
-                    entry
-                        .passkey
-                        .as_ref()
-                        .is_some_and(|(_, id)| exclude.iter().any(|excluded| excluded == id))
-                });
-                if excluded {
-                    self.passkey_finish(Err(Failure::EXCLUDED));
-                    self.browser
-                        .toasts
-                        .done("This account already has a passkey saved here.");
-                    return Task::none();
-                }
-                pending.stage = Stage::Confirm;
-            }
+            Wanted::Create { .. } => pending.stage = Stage::Confirm,
             Wanted::Get { allow } => {
                 let found: Vec<_> = state
                     .catalog
@@ -252,6 +250,13 @@ impl App {
                     return Task::none();
                 };
                 if !matches!(pending.stage, Stage::Confirm) || state.busy {
+                    return Task::none();
+                }
+                if registration_excluded(pending, &state.catalog) {
+                    self.passkey_finish(Err(Failure::EXCLUDED));
+                    self.browser
+                        .toasts
+                        .done("This account already has a passkey saved here.");
                     return Task::none();
                 }
                 let made = pending.request.create(keeper).and_then(|(passkey, reply)| {

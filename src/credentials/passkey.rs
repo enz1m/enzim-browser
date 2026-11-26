@@ -348,11 +348,24 @@ fn rp_allowed(host: &str, rp_id: &str) -> bool {
         && psl::domain(rp_id.as_bytes()).is_some()
 }
 
+pub(crate) fn credential_id_matches(descriptors: &[String], stored_id: &str) -> bool {
+    let Some(stored_id) = unb64(stored_id) else {
+        return false;
+    };
+    descriptors
+        .iter()
+        .any(|id| unb64(id).as_ref() == Some(&stored_id))
+}
+
 impl Incoming {
     /// Parses a message posted by the page's relay. `origin` and `top_origin`
-    /// are the engine's; a frame of another origin than its top document is
-    /// refused, as is anything but HTTPS.
-    pub(crate) fn parse(json: &str, origin: &str, top_origin: &str, main_frame: bool) -> Option<Self> {
+    /// are supplied by WebKit. Only HTTPS top-level documents can request passkeys.
+    pub(crate) fn parse(
+        json: &str,
+        origin: &str,
+        top_origin: &str,
+        main_frame: bool,
+    ) -> Option<Self> {
         if json.len() > MAX_MESSAGE {
             return None;
         }
@@ -427,7 +440,7 @@ impl Incoming {
         let Some(host) = url.host_str().filter(|_| url.scheme() == "https") else {
             return refused(Failure::NOT_ALLOWED);
         };
-        if !main_frame && origin != top_origin {
+        if !main_frame || origin != top_origin {
             return refused(Failure::NOT_ALLOWED);
         }
         // WebAuthn sets no upper bound on a challenge, and Google's run past
@@ -688,6 +701,13 @@ mod tests {
     }
 
     #[test]
+    fn excluded_ids_compare_the_credential_bytes() {
+        assert!(credential_id_matches(&["/w==".into()], "_w"));
+        assert!(!credential_id_matches(&["AA".into()], "_w"));
+        assert!(!credential_id_matches(&["!".into()], "?"));
+    }
+
+    #[test]
     fn a_request_is_bound_to_the_engines_origin_and_refused_outside_it() {
         let bound = request(&registration("\"example.com\""), ORIGIN);
         assert_eq!((bound.id, bound.rp_id.as_str()), (7, "example.com"));
@@ -712,6 +732,11 @@ mod tests {
             refused(&registration("\"example.com\""), ORIGIN, "https://embedder.test", false),
             "NotAllowedError",
             "a frame inside another site"
+        );
+        assert_eq!(
+            refused(&registration("\"example.com\""), ORIGIN, ORIGIN, false),
+            "NotAllowedError",
+            "matching top and requester origins do not establish the ancestry"
         );
         assert_eq!(
             refused(
