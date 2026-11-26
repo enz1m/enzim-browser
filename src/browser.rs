@@ -3389,6 +3389,13 @@ impl App {
                     },
                     site_name(&self.browser.saved.tabs[self.browser.saved.active].url),
                 ));
+                if self.popup_window {
+                    body = body.push(
+                        text(self.popup_site_address())
+                            .size(13)
+                            .wrapping(iced::widget::text::Wrapping::Glyph),
+                    );
+                }
                 if service.loading {
                     body = body.push(popup_info(
                         "Connecting",

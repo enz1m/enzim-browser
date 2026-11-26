@@ -125,6 +125,22 @@ impl App {
         self.submit_browser_action(BrowserAction::ResumePopup(target));
     }
 
+    pub(super) fn popup_site_address(&self) -> String {
+        let url = &self.browser.saved.tabs[self.browser.saved.active].url;
+        url::Url::parse(url).ok().map_or_else(
+            || POPUP_INITIAL_URL.to_owned(),
+            |parsed| {
+                if parsed.origin().is_tuple() {
+                    parsed.origin().ascii_serialization()
+                } else if parsed.as_str() == POPUP_INITIAL_URL {
+                    POPUP_INITIAL_URL.to_owned()
+                } else {
+                    format!("{}:", parsed.scheme())
+                }
+            },
+        )
+    }
+
     /// The bar of a popup window: who the page is from, where it is, and the
     /// window's controls. A sign-in window shows its address so that the
     /// person can see which site asks for their password; it cannot be
@@ -132,39 +148,11 @@ impl App {
     pub(super) fn popup_bar(&self) -> Element<'_, Message> {
         use iced::widget::{container, row, text};
         let p = &self.look().palette;
-        let url = &self.browser.saved.tabs[self.browser.saved.active].url;
-        // The origin is what the person must read; the rest is detail.
-        let (origin, rest) = url::Url::parse(url).ok().map_or_else(
-            || (url.clone(), String::new()),
-            |parsed| {
-                if !parsed.origin().is_tuple() {
-                    return (url.clone(), String::new());
-                }
-                let origin = parsed.origin().ascii_serialization();
-                let rest = url.strip_prefix(&origin).unwrap_or_default().to_owned();
-                (origin, rest)
-            },
-        );
-        let (strong, muted) = (p.text, p.text_muted);
-        let address = container(
-            row![
-                // A long origin loses its start, never the registrable domain at its end.
-                text(origin)
-                    .size(13)
-                    .wrapping(iced::widget::text::Wrapping::None)
-                    .ellipsis(iced::widget::text::Ellipsis::Start)
-                    .style(move |_| text::Style { color: Some(strong) }),
-                text(rest)
-                    .size(13)
-                    .width(Length::Fill)
-                    .wrapping(iced::widget::text::Wrapping::None)
-                    .ellipsis(iced::widget::text::Ellipsis::End)
-                    .style(move |_| text::Style { color: Some(muted) }),
-            ]
-            .align_y(iced::Alignment::Center),
-        )
-        .clip(true)
-        .width(Length::Fill);
+        let address = text(self.popup_site_address())
+            .size(13)
+            .width(Length::Fill)
+            .wrapping(iced::widget::text::Wrapping::None)
+            .ellipsis(iced::widget::text::Ellipsis::Start);
         let field = p.field;
         let body = container(
             row![self.address_identity(), address]
@@ -233,6 +221,23 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn popup_site_address_uses_the_origin_without_credentials_path_or_query() {
+        let mut app = browser_tests::app();
+        for (url, expected) in [
+            (
+                "https://decoy.example@real.example:8443/decoy.example?private=1",
+                "https://real.example:8443",
+            ),
+            ("about:blank", "about:blank"),
+            ("data:text/html,https://decoy.example", "data:"),
+            ("blob:https://real.example/f81730da", "https://real.example"),
+        ] {
+            app.browser.saved.tabs[0].url = url.into();
+            assert_eq!(app.popup_site_address(), expected);
+        }
+    }
 
     #[test]
     fn a_window_a_page_opens_is_a_tab_in_its_openers_container_and_closes_back_to_it() {
