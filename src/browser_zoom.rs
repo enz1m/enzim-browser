@@ -323,6 +323,7 @@ mod tests {
         app.browser.saved.tabs.push(TabInfo {
             key: next_tab_key(),
             favicon: None,
+            page_copy: None,
             title: "Example".into(),
             url: "https://example.org/".into(),
             pinned: false,

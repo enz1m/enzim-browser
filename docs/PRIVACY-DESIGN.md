@@ -245,19 +245,24 @@ address to a third party: on the person's request it opens
 is sent otherwise, and nothing of the page's content is sent by the browser.
 
 The source of a page shown by **View page source**, a Reader view, and the PDF
-of a page on its way to a printer are written under
-`$XDG_RUNTIME_DIR/enzim-browser`, in folders with mode 0700 and files with
-mode 0600. The source's file is named after the page's host only. The print
-file is removed when `lp` returns; a source or Reader copy is removed when the
-tab showing it closes, and with its window.
+of a page on its way to a printer are written to a user-private runtime
+directory. The print file is removed when `lp` returns. Source and Reader
+copies use separate 0700 runtime folders and 0600 files. Copies are removed
+when the last tab showing them closes, including when a private window
+closes. They are omitted from the saved session. Clearing a container's
+website data also closes its copy tabs across windows that share the same
+browsing profile.
 
 The engine writes every download into a private incoming folder (mode 0700) in
 the profile's cache. A whole download then moves to the downloads folder under
 a free name, or to the place the person chose. A PDF that opens in a tab never
-leaves the incoming folder: it is removed when no tab shows it, when its window
-closes, or at the next start. **Save to downloads** in the PDF toolbar copies
-it to the downloads folder. With PDFs set to open in the system app, PDFs are
-kept like other downloads and open only when the person asks.
+leaves the incoming folder. It is removed when no tab shows it, when its
+window closes, or at the next start. **Save to downloads** in the PDF toolbar
+copies it to the downloads folder. Turning off automatic PDF previews saves
+web PDFs as downloads. Choose **Open in system app** to hand a PDF off.
 
-Clearing history, clearing all site data, or removing a container also clears
-the browser's site icon cache, which is kept by site for every container.
+Clearing history, clearing all website data, or removing a container clears
+the browser's profile-wide site icon cache. Clearing all website data
+also clears WebKit's icon database for the selected container. Private
+windows keep site icons in memory. Deleting a regular container removes its
+WebKit data and cache directories after its sessions close.

@@ -45,11 +45,11 @@ pub(crate) enum ActionCommand {
     Translate,
     /// Open the source of the page on show as text, in a new tab.
     ViewSource,
-    Source(Result<String, String>),
+    Source(CopyRequest, Result<String, String>),
     /// Open the readable part of the page on show, set as plain reading
     /// matter, in a new tab.
     Reader,
-    Readable(Result<String, String>),
+    Readable(CopyRequest, Result<String, String>),
 }
 
 /// The page a reader view is: what `reader.js` took from an article, in a
@@ -112,38 +112,48 @@ pub(crate) fn desktop_language(locale: Option<&str>) -> String {
         .to_owned()
 }
 
-pub(crate) fn next_copy_owner() -> u64 {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+#[derive(Clone, Debug)]
+pub(crate) struct CopyRequest {
+    tab: u64,
+    generation: u64,
+    address: String,
+    container: Option<u64>,
 }
 
-/// Where the text of a page's source is kept for its tab to show: in the
-/// session's runtime folder, which is in memory, is the person's alone and
-/// is emptied when they log out.
-fn source_folder() -> Option<std::path::PathBuf> {
-    Some(std::path::PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?).join("enzim-browser/source"))
+#[derive(Debug)]
+pub(crate) struct PageCopy {
+    pub(crate) address: String,
+    pub(super) container: Option<u64>,
+    _scratch: crate::webview_scratch::SecureScratch,
 }
 
-fn write_source(name: &str, source: &str) -> Result<String, String> {
-    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
-    let folder = source_folder().ok_or("No runtime folder for this session.")?;
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(&folder)
-        .map_err(|error| error.to_string())?;
-    let path = folder.join(name);
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&path)
-        .map_err(|error| error.to_string())?;
-    std::io::Write::write_all(&mut file, source.as_bytes()).map_err(|error| error.to_string())?;
-    url::Url::from_file_path(&path)
-        .map(String::from)
-        .map_err(|()| "The source has no address.".to_owned())
+impl PageCopy {
+    fn write(name: &str, source: &str, container: Option<u64>) -> Result<Self, String> {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let runtime = enzui_core::runtime_dir::runtime_dir().map_err(|error| error.to_string())?;
+        let scratch = crate::webview_scratch::SecureScratch::open_under_root(
+            &runtime,
+            "enzim-browser-source",
+        )?;
+        let path = scratch.path().join(name);
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+            .map_err(|error| error.to_string())?;
+        file.write_all(source.as_bytes())
+            .map_err(|error| error.to_string())?;
+        let address =
+            crate::desktop_files::file_uri(&path).ok_or("The page copy has no address.")?;
+        Ok(Self {
+            address,
+            container,
+            _scratch: scratch,
+        })
+    }
 }
 
 /// A file name for the source of the page at `address`: its host and a
@@ -214,25 +224,48 @@ fn on_thread<T: Send + 'static>(
 }
 
 impl App {
-    /// Removes this window's page-source and reader copies that no tab
-    /// shows, or all of them with `all`.
-    pub(crate) fn discard_page_copies(&self, all: bool) {
-        if cfg!(test) {
-            return;
+    fn copy_request(&self) -> CopyRequest {
+        let tab = &self.browser.saved.tabs[self.browser.saved.active];
+        CopyRequest {
+            tab: tab.key,
+            generation: self.browser.copy_generation,
+            address: tab.url.clone(),
+            container: tab.container,
         }
-        let Some(files) = source_folder().and_then(|folder| std::fs::read_dir(folder).ok()) else {
-            return;
-        };
-        let prefix = format!("w{}-", self.browser.copy_owner);
-        for file in files.flatten() {
-            if !file.file_name().to_string_lossy().starts_with(&prefix) {
-                continue;
+    }
+
+    fn accepts_copy(&self, request: &CopyRequest) -> bool {
+        let tab = &self.browser.saved.tabs[self.browser.saved.active];
+        request.generation == self.browser.copy_generation
+            && request.tab == tab.key
+            && request.address == tab.url
+            && request.container == tab.container
+    }
+
+    fn open_page_copy(&mut self, name: &str, content: &str, kind: &str) {
+        let container = self.browser.saved.tabs[self.browser.saved.active].container;
+        match PageCopy::write(name, content, container) {
+            Ok(copy) => {
+                self.new_tab(copy.address.clone());
+                self.browser.saved.tabs[self.browser.saved.active].page_copy =
+                    Some(std::sync::Arc::new(copy));
+                self.browser.save();
             }
-            let path = file.path();
-            let address = url::Url::from_file_path(&path).map(String::from);
-            let shown = !all && address.is_ok_and(|address| self.browser.saved.tabs.iter().any(|tab| tab.url == address));
-            if !shown {
-                let _ = std::fs::remove_file(path);
+            Err(error) => self.browser.toasts.error(kind, error),
+        }
+    }
+
+    pub(crate) fn clear_page_copies(&mut self, container: Option<u64>) {
+        self.browser.copy_generation = self.browser.copy_generation.wrapping_add(1);
+        for index in (0..self.browser.saved.tabs.len()).rev() {
+            let tab = &mut self.browser.saved.tabs[index];
+            if tab
+                .page_copy
+                .as_ref()
+                .is_some_and(|copy| copy.container == container)
+            {
+                tab.pinned = false;
+                drop(self.browser_command(Command::Close(index)));
             }
         }
     }
@@ -292,6 +325,7 @@ impl App {
         self.browser.saved.tabs.push(TabInfo {
             key,
             favicon: None,
+            page_copy: None,
             title: InternalPage::from_url(&url)
                 .map_or_else(|| site_name(&url), |page| page.title().to_owned()),
             url: url.clone(),
@@ -328,12 +362,7 @@ impl App {
         // arrives later on its own leaves the panels alone.
         if !matches!(
             command,
-            Saved(_)
-                | External(_)
-                | ExternalOpened(_)
-                | Selection(_)
-                | Source(_)
-                | Readable(_)
+            Saved(_) | External(_) | ExternalOpened(_) | Selection(_) | Source(..) | Readable(..)
         ) {
             self.browser.panel = Panel::None;
         }
@@ -446,11 +475,13 @@ impl App {
                 }
             }
             ViewSource => {
+                let request = self.copy_request();
                 let (job, receiver) = crate::native_jobs::Job::new();
                 self.submit_browser_action(BrowserAction::ExportHtml { job });
-                return Task::perform(crate::native_jobs::receive(receiver), |result| {
-                    c(Command::Action(Source(result.and_then(
-                        |payload| match payload {
+                return Task::perform(crate::native_jobs::receive(receiver), move |result| {
+                    c(Command::Action(Source(
+                        request,
+                        result.and_then(|payload| match payload {
                             crate::native_jobs::Payload::Json(serde_json::Value::String(html))
                                 if html.len() <= 64 * 1024 * 1024 =>
                             {
@@ -466,19 +497,19 @@ impl App {
                     ))))
                 });
             }
-            Source(Ok(source)) => {
-                let name = format!(
-                    "w{}-{}",
-                    self.browser.copy_owner,
-                    source_name(&self.browser.saved.tabs[self.browser.saved.active].url, next_tab_key())
+            Source(request, Ok(source)) if self.accepts_copy(&request) => {
+                let name = source_name(
+                    &self.browser.saved.tabs[self.browser.saved.active].url,
+                    next_tab_key(),
                 );
-                match write_source(&name, &source) {
-                    Ok(address) => self.new_tab(address),
-                    Err(error) => self.browser.toasts.error("source", error),
-                }
+                self.open_page_copy(&name, &source, "source");
             }
-            Source(Err(error)) => self.browser.toasts.error("source", error),
+            Source(request, Err(error)) if self.accepts_copy(&request) => {
+                self.browser.toasts.error("source", error);
+            }
+            Source(..) => {}
             Reader => {
+                let request = self.copy_request();
                 let (job, receiver) = crate::native_jobs::Job::new();
                 self.submit_browser_action(BrowserAction::Evaluate {
                     source: include_str!("reader.js").into(),
@@ -487,9 +518,10 @@ impl App {
                     ),
                     job,
                 });
-                return Task::perform(crate::native_jobs::receive(receiver), |result| {
-                    c(Command::Action(Readable(result.and_then(
-                        |payload| match payload {
+                return Task::perform(crate::native_jobs::receive(receiver), move |result| {
+                    c(Command::Action(Readable(
+                        request,
+                        result.and_then(|payload| match payload {
                             crate::native_jobs::Payload::Json(serde_json::Value::String(text)) => {
                                 Ok(text)
                             }
@@ -498,7 +530,7 @@ impl App {
                     ))))
                 });
             }
-            Readable(Ok(extracted)) => {
+            Readable(request, Ok(extracted)) if self.accepts_copy(&request) => {
                 let Some(page) = reader_page(&extracted) else {
                     self.browser
                         .toasts
@@ -511,13 +543,12 @@ impl App {
                 )
                 .replacen("source-of-", "reading-", 1)
                 .replace(".txt", ".html");
-                let name = format!("w{}-{name}", self.browser.copy_owner);
-                match write_source(&name, &page) {
-                    Ok(address) => self.new_tab(address),
-                    Err(error) => self.browser.toasts.error("reader", error),
-                }
+                self.open_page_copy(&name, &page, "reader");
             }
-            Readable(Err(error)) => self.browser.toasts.error("reader", error),
+            Readable(request, Err(error)) if self.accepts_copy(&request) => {
+                self.browser.toasts.error("reader", error);
+            }
+            Readable(..) => {}
             Cut => {
                 // The copy reads the selection in the page's process before
                 // the removal that follows it there.
@@ -595,6 +626,33 @@ mod tests {
         );
         assert_eq!(translation_address("file:///home/me/notes.html", "hu"), None);
         assert_eq!(translation_address("enzim://settings", "hu"), None);
+    }
+
+    #[test]
+    fn clearing_site_data_retires_copy_files_and_rejects_late_replies() {
+        let mut app = browser_tests::app();
+        app.browser.private = true;
+        let request = app.copy_request();
+        let mut path = Vec::new();
+        for container in [Some(1), Some(2)] {
+            let copy = PageCopy::write("source.txt", "synthetic page", container).unwrap();
+            path.push(crate::desktop_files::file_path(&copy.address).unwrap());
+            let mut tab = app.browser.saved.tabs[0].clone();
+            tab.key = next_tab_key();
+            tab.url = copy.address.clone();
+            tab.container = container;
+            tab.page_copy = Some(std::sync::Arc::new(copy));
+            app.browser.saved.tabs.push(tab);
+            app.browser.sleeping.push(None);
+        }
+        app.clear_page_copies(Some(1));
+        assert!(!app.accepts_copy(&request));
+        assert!(!path[0].exists());
+        assert!(path[1].exists());
+        assert_eq!(app.browser.saved.tabs.len(), 2);
+        assert!(app.browser.closed.is_empty());
+        drop(app);
+        assert!(!path[1].exists());
     }
 
     #[test]

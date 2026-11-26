@@ -1224,6 +1224,7 @@ impl Saved {
             self.tabs.push(TabInfo {
                 key: next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 url: String::new(),
                 title: "New tab".into(),
                 pinned: false,

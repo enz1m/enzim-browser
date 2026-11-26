@@ -100,6 +100,7 @@ impl App {
             app.browser.saved.tabs = vec![crate::browser::TabInfo {
                 key: crate::browser::next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 url: String::new(),
                 title: "New tab".into(),
                 pinned: false,
@@ -1252,6 +1253,7 @@ mod native_dispatch_tests {
             url: "https://example.org/".into(),
             title: "Old title".into(),
             favicon: None,
+            page_copy: None,
             pinned: false,
             group: None,
             container: None,

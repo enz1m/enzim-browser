@@ -20,6 +20,7 @@ pub(crate) fn run() -> Result<serde_json::Value, String> {
                 url: url.clone(),
                 title: format!("A retained document in tab {index}"),
                 favicon: None,
+                page_copy: None,
                 pinned: false,
                 group: None,
                 container: None,

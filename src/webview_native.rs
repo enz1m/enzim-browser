@@ -1910,31 +1910,67 @@ mod real {
     std::thread_local! {
         static PROFILE_LEASES:std::cell::RefCell<std::collections::BTreeMap<enzui_webkit::web::profile::ProfileId,std::rc::Rc<enzui_webkit::ffi::profile::NetworkSession>>>=Default::default();
     }
+    fn retire_profile_leases(ids: &[enzui_webkit::web::profile::ProfileId]) {
+        KEPT_POPUPS.with(|kept| {
+            kept.borrow_mut().retain(|(_, _, session)| {
+                session.profile().is_none_or(|profile| !ids.contains(&profile.id()))
+            });
+        });
+        PROFILE_LEASES.with(|leases| {
+            let mut leases = leases.borrow_mut();
+            for id in ids {
+                leases.remove(id);
+            }
+        });
+    }
+
     pub(super) fn release_profiles(ids: Vec<enzui_webkit::web::profile::ProfileId>) {
         let Ok(lane) = wpe_lane() else {
             return;
         };
         if lane.on_main {
-            PROFILE_LEASES.with(|leases| {
-                let mut leases = leases.borrow_mut();
-                for id in ids {
-                    leases.remove(&id);
-                }
-            });
+            retire_profile_leases(&ids);
             return;
         }
-        let job: Box<dyn FnOnce() + Send> = Box::new(move || {
-            PROFILE_LEASES.with(|leases| {
-                let mut leases = leases.borrow_mut();
-                for id in ids {
-                    leases.remove(&id);
-                }
-            });
-        });
+        let job: Box<dyn FnOnce() + Send> = Box::new(move || retire_profile_leases(&ids));
         if lane.jobs.try_send(job).is_ok() {
             super::wake_native_worker();
             enzui_webkit::ffi::wake_native_event_loop();
         }
+    }
+
+    pub(super) async fn remove_profile_storage(name: String) -> Result<(), String> {
+        let lane = wpe_lane().map_err(|error| error.to_string())?;
+        for _ in 0..40 {
+            let (send, receive) = tokio::sync::oneshot::channel();
+            let name = name.clone();
+            let job: Box<dyn FnOnce() + Send> = Box::new(move || {
+                let result = opening_resources().and_then(|resources| {
+                    let id = enzui_webkit::web::profile::ProfileId::Persistent(name.clone());
+                    retire_profile_leases(&[id]);
+                    resources
+                        .profiles
+                        .borrow_mut()
+                        .remove_persistent_profile(&name)
+                        .map_err(|error| error.to_string())
+                });
+                let _ = send.send(result);
+            });
+            lane.jobs
+                .try_send(job)
+                .map_err(|_| "The browser engine is busy.")?;
+            super::wake_native_worker();
+            enzui_webkit::ffi::wake_native_event_loop();
+            let removed = tokio::time::timeout(std::time::Duration::from_secs(5), receive)
+                .await
+                .map_err(|_| "The browser engine did not respond.")?
+                .map_err(|_| "The browser engine stopped.")??;
+            if removed {
+                return Ok(());
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        Err("A page or download is still using this container.".into())
     }
 
     /// How long a window a page opened is kept for the tab that takes it.
@@ -5440,6 +5476,16 @@ pub(crate) fn run_browser_feature_gate(
     scratch: std::path::PathBuf,
 ) -> Result<serde_json::Value, String> {
     real::run_browser_feature_gate(scratch)
+}
+
+pub(crate) async fn remove_profile_storage(name: String) -> Result<(), String> {
+    #[cfg(feature = "wpe")]
+    return real::remove_profile_storage(name).await;
+    #[cfg(not(feature = "wpe"))]
+    {
+        drop(name);
+        Err("The browser engine is unavailable.".into())
+    }
 }
 
 #[cfg(feature = "wpe")]

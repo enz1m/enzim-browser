@@ -62,6 +62,7 @@ impl App {
                 tab: TabInfo {
                     key: next_tab_key(),
                     favicon: None,
+                    page_copy: None,
                     title: site_name(&shown),
                     url: shown,
                     pinned: false,
@@ -84,6 +85,7 @@ impl App {
         self.browser.saved.tabs.push(TabInfo {
             key,
             favicon: None,
+            page_copy: None,
             title: site_name(&shown),
             url: shown,
             pinned: false,

@@ -1351,6 +1351,7 @@ impl Windows {
             app.browser.saved.tabs.push(crate::browser::TabInfo {
                 key: crate::browser::next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 title: crate::browser::site_name(&resolved),
                 url: resolved,
                 pinned: false,

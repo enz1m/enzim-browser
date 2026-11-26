@@ -307,6 +307,7 @@ mod tests {
         TabInfo {
             key: next_tab_key(),
             favicon: None,
+            page_copy: None,
             url: url.into(),
             title: title.into(),
             pinned: false,

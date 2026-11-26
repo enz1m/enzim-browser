@@ -53,6 +53,7 @@ impl App {
             self.browser.saved.tabs.push(TabInfo {
                 key: next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 title: "New tab".into(),
                 url: String::new(),
                 pinned: false,
@@ -147,6 +148,7 @@ mod tests {
         let tab = TabInfo {
             key: next_tab_key(),
             favicon: None,
+            page_copy: None,
             url: "https://video.example/watch".into(),
             title: "A film".into(),
             pinned: false,

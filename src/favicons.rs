@@ -6,15 +6,13 @@ use std::{cell::RefCell, collections::HashMap, path::PathBuf};
 pub(crate) struct Cache {
     entries: RefCell<HashMap<String, Option<Handle>>>,
     directory: Option<PathBuf>,
-    persist: bool,
 }
 impl Cache {
     pub(crate) fn new(private: bool) -> Self {
         Self {
             entries: RefCell::new(HashMap::new()),
-            directory: (!cfg!(test))
+            directory: (!private && !cfg!(test))
                 .then(|| crate::browser_profile::paths().cache.join("favicons")),
-            persist: !private,
         }
     }
     pub(crate) fn origin(address: &str) -> Option<String> {
@@ -107,9 +105,7 @@ impl Cache {
         let handle = Self::decode(bytes)?;
 
         self.remember(origin.to_owned(), Some(handle.clone()));
-        if self.persist
-            && let Some(file) = self.file(origin)
-        {
+        if let Some(file) = self.file(origin) {
             use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
             if let Some(dir) = file.parent()
                 && std::fs::create_dir_all(dir).is_ok()
@@ -159,7 +155,9 @@ mod tests {
         ));
         let cache = |private| {
             let mut cache = Cache::new(private);
-            cache.directory = Some(directory.clone());
+            if !private {
+                cache.directory = Some(directory.clone());
+            }
             cache
         };
         let mut bytes = std::io::Cursor::new(Vec::new());
@@ -185,6 +183,9 @@ mod tests {
         drop(regular);
         assert!(cache(false).get("https://example.com/history").is_some());
         let private = cache(true);
+        assert!(private.get("https://example.com/history").is_none());
+        private.clear();
+        assert!(cache(false).get("https://example.com/history").is_some());
         assert!(
             private
                 .receive(

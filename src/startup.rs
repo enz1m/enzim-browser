@@ -30,6 +30,7 @@ pub(crate) fn apply(saved: &mut Saved, private: bool) {
     saved.tabs = vec![TabInfo {
         key: next_tab_key(),
         favicon: None,
+        page_copy: None,
         title: if url.is_empty() {
             "New tab".into()
         } else {
@@ -49,6 +50,7 @@ pub(crate) fn open_launch(saved: &mut Saved, url: &str) {
     let tab = TabInfo {
         key: next_tab_key(),
         favicon: None,
+        page_copy: None,
         url: url.into(),
         title: url.into(),
         pinned: false,
@@ -97,6 +99,7 @@ mod tests {
         saved.tabs.push(TabInfo {
             key: next_tab_key(),
             favicon: None,
+            page_copy: None,
             url: "https://work.example".into(),
             title: "Work".into(),
             pinned: true,
@@ -126,6 +129,7 @@ mod tests {
         saved.tabs.push(TabInfo {
             key: next_tab_key(),
             favicon: None,
+            page_copy: None,
             url: "https://example.org/work".into(),
             title: "Work".into(),
             pinned: true,

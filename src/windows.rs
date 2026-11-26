@@ -175,20 +175,38 @@ impl Windows {
             ) => true,
             _ => false,
         };
-        if let Event::App(
-            id,
-            Message::Chrome(crate::browser::Command::Container(
-                crate::browser::ContainerCommand::DeleteConfirm,
-            )),
-        ) = &event
+        if let Event::App(id, Message::Chrome(command)) = &event
             && let Some(source) = self.apps.get(id)
-            && !source.browser.private
-            && let Some(container) = source.browser.container_edit
         {
-            for (other, app) in &mut self.apps {
-                if other != id && !app.browser.private {
-                    close_container_tabs(app, container);
+            use crate::browser::{Command, ContainerCommand, cookies::CookieCommand};
+            let private = source.browser.private;
+            let private_scope = source.browser.private_scope.clone();
+            let related = |app: &App| {
+                app.browser.private == private
+                    && (!private || std::rc::Rc::ptr_eq(&app.browser.private_scope, &private_scope))
+            };
+            match command {
+                Command::Container(ContainerCommand::DeleteConfirm)
+                    if source.browser.panel == crate::browser::Panel::ContainerDelete =>
+                {
+                    if let Some(container) = source.browser.container_edit {
+                        for (other, app) in &mut self.apps {
+                            if other != id && related(app) {
+                                close_container_tabs(app, container);
+                                app.retire_container_cookie_host(container);
+                            }
+                        }
+                    }
                 }
+                Command::Cookies(CookieCommand::Confirm) => {
+                    if let Some(container) = source.website_data_clear_target() {
+                        for app in self.apps.values_mut().filter(|app| related(app)) {
+                            app.clear_page_copies(container);
+                            app.clear_site_icons();
+                        }
+                    }
+                }
+                _ => {}
             }
         }
         let imported_history = match &event {
@@ -339,22 +357,31 @@ impl Windows {
                             let _ = std::fs::remove_file(path);
                         }
                     }
-                    app.discard_page_copies(true);
                     app.browser.save();
                     if let Some(shutdown) = app.browser.desktop_notifications.shutdown() {
                         self.retiring_notifications += 1;
                         retire = shutdown.map(|()| Event::NotificationsRetired);
                     }
-                    // A popup window shares its opener's private storage,
-                    // which goes with the opener's window.
                     if app.browser.private && !app.popup_window {
-                        let ids = app
-                            .browser
-                            .private_profiles
-                            .values()
+                        let popups: Vec<_> = self.apps.iter()
+                            .filter(|(_, candidate)| {
+                                candidate.popup_window && std::rc::Rc::ptr_eq(
+                                    &candidate.browser.private_scope,
+                                    &app.browser.private_scope,
+                                )
+                            })
+                            .map(|(id, _)| *id)
+                            .collect();
+                        let profiles = std::iter::once(&app)
+                            .chain(popups.iter().filter_map(|id| self.apps.get(id)))
+                            .flat_map(|window| window.browser.private_profiles.values())
                             .map(enzui_webkit::web::WebProfile::id)
                             .collect();
-                        crate::webview_native::release_profiles(ids);
+                        for popup in popups {
+                            retire = Task::batch([retire, self.handle(Event::Close(popup))]);
+                        }
+                        drop(app);
+                        crate::webview_native::release_profiles(profiles);
                     }
                 }
                 if regular
@@ -530,6 +557,7 @@ impl Windows {
         let preferences = source.browser.saved.clone();
         let parent_private = source.browser.private;
         let source_profiles = source.browser.private_profiles.clone();
+        let private_scope = source.browser.private_scope.clone();
         let applied_routes = source.browser.container_routes.clone();
         let (theme, theme_task) = enzui_core::theme_file::integration::ThemeIntegration::boot();
         let mut next = App::with_browser(
@@ -552,6 +580,7 @@ impl Windows {
         next.browser.saved.tabs = vec![crate::browser::TabInfo {
             key: crate::browser::next_tab_key(),
             favicon: None,
+            page_copy: None,
             title: if url.is_empty() {
                 "New tab".into()
             } else {
@@ -581,6 +610,7 @@ impl Windows {
             .as_ref()
             .map(|popup| crate::browser::popups::popup_window_size(popup.size));
         if let Some(popup) = popup {
+            next.browser.private_scope = private_scope;
             // A popup shares its opener's storage, a private one included,
             // or a sign-in would not reach the page that asked for it.
             next.browser
@@ -635,6 +665,7 @@ impl Windows {
                     app.browser.container_routes.remove(&container);
                     close_container_tabs(app, container);
                     app.cookie_container_removed(container);
+                    app.clear_site_icons();
                 }
                 for (index, host) in std::iter::once((app.browser.saved.active, &app.webview))
                     .chain(
@@ -817,6 +848,7 @@ fn copy_preferences(source: &crate::browser::Saved, target: &mut crate::browser:
 }
 
 fn close_container_tabs(app: &mut App, container: u64) {
+    app.clear_page_copies(Some(container));
     let indices: Vec<_> = app
         .browser
         .saved
@@ -929,6 +961,29 @@ mod tests {
         let _ = windows.update(Event::App(b, c(C::Window(WindowCommand::Close))));
         assert!(windows.apps.is_empty());
     }
+    #[test]
+    fn closing_a_private_window_retires_its_popup_without_closing_other_windows() {
+        let (mut windows, parent, unrelated) = windows();
+        let source = windows.apps.get_mut(&parent).unwrap();
+        source.browser.private = true;
+        let tab = source.browser.saved.tabs[0].clone();
+        drop(windows.open_window(
+            parent,
+            true,
+            None,
+            None,
+            Some(crate::browser::popups::PopupWindow {
+                tab,
+                target: "about:blank".into(),
+                popup: 1,
+                size: None,
+            }),
+        ));
+        assert_eq!(windows.apps.len(), 3);
+        drop(windows.update(Event::Close(parent)));
+        assert_eq!(windows.apps.keys().copied().collect::<Vec<_>>(), [unrelated]);
+    }
+
     #[test]
     fn imported_history_and_bookmark_paths_reach_regular_windows_but_not_private_windows() {
         use crate::{

@@ -1541,6 +1541,7 @@ mod adaptive_top_tests {
             .map(|i| TabInfo {
                 key: i as u64 + 1,
                 favicon: None,
+                page_copy: None,
                 url: format!("https://example.com/{i}"),
                 title: format!("A useful long page title {i}"),
                 pinned: false,

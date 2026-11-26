@@ -144,6 +144,15 @@ impl App {
                 .map(|tab| tab.url.as_str())
                 .chain(std::iter::once(self.address.as_str())),
         );
+        for tab in &mut self.browser.saved.tabs {
+            if tab
+                .page_copy
+                .as_ref()
+                .is_some_and(|copy| copy.address != tab.url)
+            {
+                tab.page_copy = None;
+            }
+        }
         self.sync_zoom_model();
         let mut copies: Vec<_> = self
             .webview

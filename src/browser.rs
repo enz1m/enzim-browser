@@ -33,7 +33,7 @@ mod shields;
 pub(crate) mod toasts;
 use shields::ShieldCommand;
 #[path = "browser_cookies.rs"]
-mod cookies;
+pub(crate) mod cookies;
 use cookies::CookieCommand;
 #[path = "browser_error.rs"]
 mod error_page;
@@ -123,6 +123,7 @@ pub(crate) enum ContainerCommand {
     Save,
     DeleteRequest(u64),
     DeleteConfirm,
+    StorageRemoved(u64, Result<(), String>),
 }
 #[derive(Debug, Clone)]
 pub(crate) enum Command {
@@ -395,6 +396,8 @@ pub(crate) struct TabInfo {
     pub(crate) key: u64,
     #[serde(skip)]
     pub(crate) favicon: Option<iced::widget::image::Handle>,
+    #[serde(skip)]
+    pub(crate) page_copy: Option<std::sync::Arc<actions::PageCopy>>,
     pub(crate) url: String,
     pub(crate) title: String,
     pub(crate) pinned: bool,
@@ -523,8 +526,8 @@ pub(crate) struct Browser {
     pub(crate) pdf_external_error: Option<(u64, String)>,
     pub(crate) pdf_requests: std::collections::BTreeMap<u64, crate::browser_pdf::Request>,
     pub(crate) favicons: crate::favicons::Cache,
-    /// Marks this window's page-source and reader copies.
-    pub(crate) copy_owner: u64,
+    pub(crate) copy_generation: u64,
+    pub(crate) private_scope: std::rc::Rc<()>,
     pub(crate) maintenance: Vec<containers::Cleanup>,
     pub(crate) container_edit: Option<u64>,
     pub(crate) container_editor_open: bool,
@@ -681,6 +684,7 @@ impl Browser {
             saved.tabs.push(TabInfo {
                 key: next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 url: String::new(),
                 title: "New tab".into(),
                 pinned: false,
@@ -730,7 +734,8 @@ impl Browser {
             pdf_external_error: None,
             history_store,
             favicons: crate::favicons::Cache::new(private),
-            copy_owner: actions::next_copy_owner(),
+            copy_generation: 0,
+            private_scope: std::rc::Rc::new(()),
             history_ready,
             maintenance: Vec::new(),
             container_edit: None,
@@ -836,7 +841,14 @@ impl Browser {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
             let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
-            std::fs::write(&tmp, serde_json::to_vec_pretty(&self.saved)?)?;
+            let mut saved = self.saved.clone();
+            for tab in &mut saved.tabs {
+                if tab.page_copy.take().is_some() {
+                    tab.url.clear();
+                    tab.title = "New tab".into();
+                }
+            }
+            std::fs::write(&tmp, serde_json::to_vec_pretty(&saved)?)?;
             std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
             std::fs::rename(tmp, path)
         })();
@@ -847,6 +859,17 @@ impl Browser {
     }
 }
 impl App {
+    pub(crate) fn clear_site_icons(&mut self) {
+        self.browser.favicons.clear();
+        for tab in &mut self.browser.saved.tabs {
+            tab.favicon = None;
+        }
+        for tab in &mut self.browser.closed {
+            tab.favicon = None;
+        }
+        self.browser.chrome_revision = self.browser.chrome_revision.wrapping_add(1);
+    }
+
     pub(crate) fn browser_command(&mut self, cmd: Command) -> Task<Message> {
         use Command::*;
         if self.browser.library.is_some()
@@ -1513,7 +1536,9 @@ impl App {
                         .remove(&self.browser.saved.tabs[i].key);
                     self.browser.input.anchor = None;
                     if self.browser.saved.tabs.len() == 1 {
-                        self.browser.closed.push(self.browser.saved.tabs[i].clone());
+                        if self.browser.saved.tabs[i].page_copy.take().is_none() {
+                            self.browser.closed.push(self.browser.saved.tabs[i].clone());
+                        }
                         self.address.clear();
                         self.browser.query.clear();
                         self.pending_navigation = None;
@@ -1534,7 +1559,10 @@ impl App {
                         if i == self.browser.saved.active {
                             self.select_tab(if i == 0 { 1 } else { i - 1 });
                         }
-                        self.browser.closed.push(self.browser.saved.tabs.remove(i));
+                        let tab = self.browser.saved.tabs.remove(i);
+                        if tab.page_copy.is_none() {
+                            self.browser.closed.push(tab);
+                        }
                         if let Some(old) = self.browser.sleeping.remove(i) {
                             self.retain_download_host(old.host);
                         }
@@ -1543,7 +1571,6 @@ impl App {
                         }
                     }
                     self.sync_local_origins();
-                    self.discard_page_copies(false);
                 }
                 self.browser.panel = crate::browser::Panel::None;
             }
@@ -1774,8 +1801,15 @@ impl App {
                 }
             }
             Duplicate(i) => {
-                let url = self.browser.saved.tabs[i].url.clone();
-                self.new_tab(url);
+                let tab = &self.browser.saved.tabs[i];
+                let url = tab.url.clone();
+                let copy = tab.page_copy.clone();
+                if let Some(copy) = copy {
+                    self.new_tab_in_container(url, copy.container);
+                    self.browser.saved.tabs[self.browser.saved.active].page_copy = Some(copy);
+                } else {
+                    self.new_tab(url);
+                }
                 self.browser.panel = crate::browser::Panel::None;
             }
             CopyUrl => {
@@ -1894,7 +1928,7 @@ impl App {
                     match self.browser.history_store.clear(&filter, start) {
                         // Icons are kept by site, not visit, so a cleared visit's site icon goes too.
                         Ok(n) => {
-                            self.browser.favicons.clear();
+                            self.clear_site_icons();
                             self.browser.toasts.done(format!("Removed {n} visits"));
                         }
                         Err(e) => self.browser.toasts.error("history", e),
@@ -1987,6 +2021,7 @@ impl App {
             self.browser.saved.tabs.push(TabInfo {
                 key: next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 title: site_name(&url),
                 url,
                 pinned: false,
@@ -2009,6 +2044,7 @@ impl App {
         self.browser.saved.tabs.push(TabInfo {
             key,
             favicon: None,
+            page_copy: None,
             title: InternalPage::from_url(&url)
                 .map_or_else(|| site_name(&url), |p| p.title().to_owned()),
             url: url.clone(),
@@ -4499,6 +4535,7 @@ pub(crate) mod browser_tests {
         app.browser.saved.tabs.push(TabInfo {
             key: next_tab_key(),
             favicon: None,
+            page_copy: None,
             url: String::new(),
             title: "New tab".into(),
             pinned: false,
@@ -6197,6 +6234,7 @@ mod popup_refresh_review {
                         group: None,
                         container: None,
                         favicon: None,
+                        page_copy: None,
                     })
                     .collect();
                 let mut bounds = Vec::new();

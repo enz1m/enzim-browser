@@ -283,8 +283,18 @@ impl App {
                     self.browser.panel = Panel::ContainerDelete;
                 }
             }
+            StorageRemoved(id, result) => self.finish_container_removal(id, result),
             DeleteConfirm => {
-                if let Some(id) = self.browser.container_edit {
+                if let Some(id) = self.browser.container_edit
+                    && self.browser.panel == Panel::ContainerDelete
+                    && !self
+                        .browser
+                        .maintenance
+                        .iter()
+                        .any(|cleanup| cleanup.id == id)
+                {
+                    self.clear_page_copies(Some(id));
+                    self.retire_container_cookie_host(id);
                     let indices: Vec<_> = self
                         .browser
                         .saved
@@ -383,48 +393,60 @@ impl App {
             }
         }
         for (id, result) in done {
-            self.browser.chrome_revision = self.browser.chrome_revision.wrapping_add(1);
-            match result {
-                Ok(()) => {
-                    let profile = self.browser.private_profiles.remove(&Some(id)).or_else(|| {
-                        self.browser
-                            .saved
-                            .containers
-                            .iter()
-                            .find(|c| c.id == id)
-                            .map(|c| enzui_webkit::web::WebProfile::persistent(c.storage_name()))
-                    });
-                    if let Some(profile) = profile {
-                        crate::webview_native::release_profiles(vec![profile.id()]);
-                    }
-                    self.browser.saved.containers.retain(|c| c.id != id);
-                    self.browser.container_routes.remove(&id);
-                    if self.browser.container_edit == Some(id) {
-                        self.browser.container_editor_open = false;
-                    }
-                    self.cookie_container_removed(id);
-                    self.browser
-                        .saved
-                        .site_permissions
-                        .retain(|choice| choice.container != Some(id));
-                    self.browser
-                        .saved
-                        .local_sites
-                        .retain(|site| site.container != id);
-                    // Icons are kept by site for every container, so all of them go.
-                    self.browser.favicons.clear();
-                    self.browser.toasts.done("Container and site data removed.");
-                    if !cfg!(test) {
-                        self.browser.save();
-                    }
-                }
-                Err(error) => {
-                    self.browser.toasts.error(
-                        "containers",
-                        format!("Container data could not be removed: {error}"),
-                    );
-                }
+            if result.is_ok() && !self.browser.private {
+                let Some(name) = self
+                    .browser
+                    .saved
+                    .containers
+                    .iter()
+                    .find(|container| container.id == id)
+                    .map(crate::profiles::Container::storage_name)
+                else {
+                    continue;
+                };
+                self.pending_tasks.push(Task::perform(
+                    crate::webview_native::remove_profile_storage(name),
+                    move |result| {
+                        c(Command::Container(ContainerCommand::StorageRemoved(
+                            id, result,
+                        )))
+                    },
+                ));
+            } else {
+                self.finish_container_removal(id, result);
             }
+        }
+    }
+
+    fn finish_container_removal(&mut self, id: u64, result: Result<(), String>) {
+        self.browser.chrome_revision = self.browser.chrome_revision.wrapping_add(1);
+        match result {
+            Ok(()) => {
+                if let Some(profile) = self.browser.private_profiles.remove(&Some(id)) {
+                    crate::webview_native::release_profiles(vec![profile.id()]);
+                }
+                self.browser.saved.containers.retain(|c| c.id != id);
+                self.browser.container_routes.remove(&id);
+                if self.browser.container_edit == Some(id) {
+                    self.browser.container_editor_open = false;
+                }
+                self.cookie_container_removed(id);
+                self.browser
+                    .saved
+                    .site_permissions
+                    .retain(|choice| choice.container != Some(id));
+                self.browser
+                    .saved
+                    .local_sites
+                    .retain(|site| site.container != id);
+                self.clear_site_icons();
+                self.browser.toasts.done("Container and site data removed.");
+                self.browser.save();
+            }
+            Err(error) => self.browser.toasts.error(
+                "containers",
+                format!("Container data could not be removed: {error}"),
+            ),
         }
     }
 

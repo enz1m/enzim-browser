@@ -533,6 +533,7 @@ fn merge(saved: &mut Saved, data: &Preview, options: Options) -> (usize, usize, 
             saved.bookmarks.push(TabInfo {
                 key: next_tab_key(),
                 favicon: None,
+                page_copy: None,
                 url: bookmark.url.clone(),
                 title: bookmark.title.clone(),
                 pinned: false,
@@ -608,6 +609,7 @@ mod tests {
         saved.bookmarks.push(TabInfo {
             key: 1,
             favicon: None,
+            page_copy: None,
             url: "https://example.org/".into(),
             title: "Existing title".into(),
             pinned: false,

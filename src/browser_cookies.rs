@@ -37,6 +37,23 @@ pub(crate) struct CookieState {
     expanded: Option<String>,
 }
 impl App {
+    pub(crate) fn retire_container_cookie_host(&mut self, id: u64) {
+        if self.browser.cookies.profile == Some(id) {
+            self.browser.cookies.host = None;
+            self.browser.cookies.generation = self.browser.cookies.generation.wrapping_add(1);
+            self.browser.cookies.busy = false;
+        }
+    }
+
+    pub(crate) fn website_data_clear_target(&self) -> Option<Option<u64>> {
+        (matches!(self.browser.cookies.confirmation, Some(None))
+            && self.browser.cookies.host.as_ref().is_some_and(|host| {
+                let host = host.borrow();
+                host.native.is_some() && host.live_view.is_some()
+            }))
+        .then_some(self.browser.cookies.profile)
+    }
+
     pub(crate) fn cookie_container_removed(&mut self, id: u64) {
         if self.browser.cookies.profile == Some(id) {
             self.browser.cookies.profile = None;
@@ -134,7 +151,6 @@ impl App {
                     let action = if let Some(keys) = keys {
                         BrowserAction::DeleteCookies { keys, job }
                     } else {
-                        self.browser.favicons.clear();
                         BrowserAction::ClearDataJob {
                             data: enzui_webkit::page::WebsiteData::ALL,
                             job,
