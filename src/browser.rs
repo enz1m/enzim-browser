@@ -1496,8 +1496,7 @@ impl App {
             ExternalVisit(url) => {
                 let url = self.browser.saved.search.resolve(&url);
                 if self.welcome.is_some() {
-                    self.address.clone_from(&url);
-                    self.browser.saved.tabs[self.browser.saved.active].url = url;
+                    self.open_launch_urls(vec![url]);
                     return Task::none();
                 }
                 self.new_tab_in_container(url, None);
@@ -2011,6 +2010,10 @@ impl App {
         );
     }
     pub(crate) fn open_external_urls(&mut self, urls: Vec<String>) -> Task<Message> {
+        if self.welcome.is_some() {
+            self.open_launch_urls(urls);
+            return Task::none();
+        }
         let Some((last, background)) = urls.split_last() else {
             return Task::none();
         };

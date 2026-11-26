@@ -22,6 +22,7 @@ pub(crate) enum Command {
 }
 
 pub(crate) struct State {
+    pub(crate) has_launch_urls: bool,
     step: usize,
     engine: String,
     privacy: crate::privacy::Privacy,
@@ -34,6 +35,7 @@ pub(crate) struct State {
 impl State {
     pub(crate) fn new(saved: &crate::browser::Saved, settings: &credentials::Settings) -> Self {
         Self {
+            has_launch_urls: false,
             step: 0,
             engine: saved.search.selected.clone(),
             privacy: saved.privacy.clone(),
@@ -555,6 +557,7 @@ impl App {
                     state.notice = error;
                     return Task::none();
                 }
+                let has_launch_urls = state.has_launch_urls;
                 state.apply_preferences(&mut self.browser.saved);
                 self.browser.credentials.settings =
                     state.settings(&self.browser.credentials.settings);
@@ -564,6 +567,11 @@ impl App {
                     self.credential_preferences_changed(&settings, identity);
                 }
                 self.welcome = None;
+                if has_launch_urls {
+                    let task = self.update(Message::BrowserGo);
+                    self.browser.save();
+                    return task;
+                }
                 return self.browser_command(BrowserCommand::Navigate(
                     "https://browser.enzim.dev/".into(),
                 ));
@@ -600,6 +608,55 @@ mod tests {
             );
             assert_eq!(app.address, "https://browser.enzim.dev/");
         }
+    }
+
+    #[test]
+    fn welcome_completion_opens_the_initial_launch_url() {
+        let mut app = crate::browser::browser_tests::app();
+        app.welcome = Some(State::new(
+            &app.browser.saved,
+            &app.browser.credentials.settings,
+        ));
+        let url = "https://example.org/initial";
+        app.open_launch_urls(vec![url.into()]);
+        assert!(app.pending_navigation.is_none());
+
+        drop(app.welcome_command(Command::Completed(Ok(()))));
+
+        assert_eq!(app.address, url);
+        assert_eq!(app.browser.saved.tabs.len(), 1);
+        assert!(matches!(
+            app.pending_navigation,
+            Some(crate::webview_native::BrowserAction::Navigate(ref target)) if target == url
+        ));
+    }
+
+    #[test]
+    fn welcome_completion_keeps_launch_order_when_urls_arrive_during_publication() {
+        let mut app = crate::browser::browser_tests::app();
+        let mut state = State::new(&app.browser.saved, &app.browser.credentials.settings);
+        state.busy = true;
+        app.welcome = Some(state);
+        let urls = [
+            "https://example.org/initial",
+            "https://example.org/forwarded",
+            "https://example.org/last",
+        ];
+        app.open_launch_urls(vec![urls[0].into()]);
+        drop(app.open_external_urls(urls[1..].iter().map(|url| (*url).into()).collect()));
+        drop(app.welcome_command(Command::Completed(Err("try again".into()))));
+        assert!(app.pending_navigation.is_none());
+
+        drop(app.welcome_command(Command::Completed(Ok(()))));
+
+        let saved = &app.browser.saved;
+        assert_eq!(
+            saved.tabs.iter().map(|tab| tab.url.as_str()).collect::<Vec<_>>(),
+            urls
+        );
+        assert_eq!(saved.active, 2);
+        assert_eq!(app.address, urls[2]);
+        assert_eq!(app.browser.sleeping.len(), saved.tabs.len());
     }
 
     #[test]

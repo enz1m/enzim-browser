@@ -111,18 +111,6 @@ impl App {
             app.browser.sleeping = vec![None];
             app.address.clear();
         }
-        for url in crate::browser_profile::launch_urls(&args) {
-            if let Some(page) = crate::browser::InternalPage::from_url(&url) {
-                app.browser.library = Some(page);
-            } else {
-                crate::startup::open_launch(&mut app.browser.saved, &url);
-                app.browser
-                    .sleeping
-                    .resize_with(app.browser.saved.tabs.len(), || None);
-                app.browser.library = None;
-            }
-            app.address = url;
-        }
         if !app.browser.private
             && !args.iter().any(|arg| arg == "--skip-welcome")
             && app.browser.saved.welcome_version == Some(0)
@@ -132,6 +120,7 @@ impl App {
                 &app.browser.credentials.settings,
             ));
         }
+        app.open_launch_urls(crate::browser_profile::launch_urls(&args));
         if let Some(page) = app.browser.library {
             app.address = page.url().into();
             app.webview.borrow_mut().hide_view();
@@ -157,6 +146,24 @@ impl App {
             app,
             Task::batch([theme_task.map(Message::Theme), nav, credentials, corners]),
         )
+    }
+
+    pub(crate) fn open_launch_urls(&mut self, urls: Vec<String>) {
+        if let Some(welcome) = self.welcome.as_mut() {
+            welcome.has_launch_urls |= !urls.is_empty();
+        }
+        for url in urls {
+            if let Some(page) = crate::browser::InternalPage::from_url(&url) {
+                self.browser.library = Some(page);
+            } else {
+                crate::startup::open_launch(&mut self.browser.saved, &url);
+                self.browser
+                    .sleeping
+                    .resize_with(self.browser.saved.tabs.len(), || None);
+                self.browser.library = None;
+            }
+            self.address = url;
+        }
     }
 
     pub(crate) fn theme(&self) -> iced::Theme {
