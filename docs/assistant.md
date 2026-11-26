@@ -3,7 +3,7 @@
 ![Assistant with a sample reply beside MDN Web Docs](screenshots/assistant.webp)
 
 A chat in the window's frame, beside the page, on the side away from the tabs
-(with tabs on top, on the side chosen in Settings). Open it with the sparkles
+(with tabs on top, on the side chosen in Settings). Open it with the Assistant
 button in the toolbar or Ctrl+Shift+A; it slides in and out beside the page.
 Drag its inner edge to resize it. In a window narrower than 760 pixels it takes
 the page's place until it is closed. The message field grows with what you type,

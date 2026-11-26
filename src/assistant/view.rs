@@ -82,7 +82,7 @@ impl crate::App {
         if !self.assistant_offered() {
             return space().width(0).into();
         }
-        enz_toolbar_icon("sparkles", m(Msg::Toggle))
+        enz_toolbar_icon("ai.assistant", m(Msg::Toggle))
             .aria_label("Assistant")
             .tooltip("Assistant (Ctrl+Shift+A)")
             .expanded(self.assistant.open)
@@ -141,7 +141,7 @@ impl crate::App {
         let p = &self.look().palette;
         let listing = self.assistant.history.is_some();
         let header = row![
-            enz_icon("sparkles").size(15.0).tint(p.accent).into_element(),
+            enz_icon("ai.assistant").size(15.0).tint(p.accent).into_element(),
             enz_text(if listing { "Chats" } else { "Assistant" }).size_px(14.0).weight(Weight::Semibold).into_element(),
             space().width(Length::Fill),
             enz_toolbar_icon("square-pen", m(Msg::NewChat))
@@ -185,7 +185,7 @@ impl crate::App {
         let muted = p.text_muted;
         let ready = self.assistant_ready();
         let mut content = column![
-            enz_icon("sparkles").size(28.0).tint(p.accent).into_element(),
+            enz_icon("ai.assistant").size(28.0).tint(p.accent).into_element(),
             enz_text(if ready { "Ask about this page or anything else." } else { "Set up the assistant" })
                 .size_px(15.0)
                 .weight(Weight::Semibold)
@@ -815,7 +815,7 @@ impl crate::App {
         let p = &self.look().palette;
         let mut body = column![
             enz_preferences_row("Assistant")
-                .icon("sparkles")
+                .icon("ai.assistant")
                 .subtitle("A chat beside the page that can read and use your tabs. Off, it takes no memory or connection.")
                 .switch(s.enabled, |on| m(Msg::Set(Change::Enabled(on))))
                 .into_element()
