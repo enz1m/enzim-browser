@@ -15,7 +15,7 @@
     "repository": "https://github.com/enz1m/enzim-winit.git"
   },
   "webkit": {
-    "revision": "d82ca615d09dcdb078968eac261680109ced09f0",
+    "revision": "c5e100b3b5b150630561a0c25800e962a17aacf8",
     "path": "../../enzui-webkit",
     "repository": "https://github.com/enz1m/enzim-webkit-rs.git",
     "branch": "main"

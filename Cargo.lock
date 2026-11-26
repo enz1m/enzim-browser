@@ -1453,7 +1453,7 @@ dependencies = [
 [[package]]
 name = "enzui-webkit"
 version = "0.2.0"
-source = "git+https://github.com/enz1m/enzim-webkit-rs.git?rev=d82ca615d09dcdb078968eac261680109ced09f0#d82ca615d09dcdb078968eac261680109ced09f0"
+source = "git+https://github.com/enz1m/enzim-webkit-rs.git?rev=c5e100b3b5b150630561a0c25800e962a17aacf8#c5e100b3b5b150630561a0c25800e962a17aacf8"
 dependencies = [
  "enzui-security",
  "memchr",
@@ -1466,7 +1466,7 @@ dependencies = [
 [[package]]
 name = "enzui-webview"
 version = "0.2.0"
-source = "git+https://github.com/enz1m/enzim-webkit-rs.git?rev=d82ca615d09dcdb078968eac261680109ced09f0#d82ca615d09dcdb078968eac261680109ced09f0"
+source = "git+https://github.com/enz1m/enzim-webkit-rs.git?rev=c5e100b3b5b150630561a0c25800e962a17aacf8#c5e100b3b5b150630561a0c25800e962a17aacf8"
 dependencies = [
  "enzui-core",
  "enzui-external-image",
