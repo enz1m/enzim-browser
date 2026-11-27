@@ -536,6 +536,7 @@ impl App {
         let page_cursor = svc.page_cursor.clone();
         let surface: Element<'_, Message> = match svc.displayed_frame().cloned() {
             Some(frame) => {
+                let frame_pixel_scale = svc.frame_pixel_scale(&frame);
                 let wv = enzui_webview::enz_web_view_owned(live_view, frame, svc.is_visible())
                     .title(if self.browser_mode {
                         "Website"
@@ -544,10 +545,16 @@ impl App {
                     })
                     .fill_viewport(self.browser_mode)
                     .scale_factor(svc.scale_factor)
+                    .frame_pixel_scale(frame_pixel_scale)
                     .page_cursor(page_cursor.as_deref())
                     .on_input(Message::WebViewInput)
                     .on_viewport_resize(Message::WebViewViewportResize)
                     .on_input_method(Message::WebViewImeEvent);
+                let wv = if let Some(scale) = self.window_scale {
+                    wv.viewport_scale(scale)
+                } else {
+                    wv
+                };
                 let wv = if let Some(source) = &svc.gpu_source {
                     wv.gpu_source(source, &svc.router)
                 } else {
@@ -578,6 +585,11 @@ impl App {
                     .on_input(Message::WebViewInput)
                     .on_viewport_resize(Message::WebViewViewportResize)
                     .on_input_method(Message::WebViewImeEvent);
+                let wv = if let Some(scale) = self.window_scale {
+                    wv.viewport_scale(scale)
+                } else {
+                    wv
+                };
                 let wv = if let Some(source) = &svc.gpu_source {
                     wv.gpu_source(source, &svc.router)
                 } else {

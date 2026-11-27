@@ -22,7 +22,9 @@ pub(crate) enum Event {
     Profile(crate::browser_profile::Event),
     Launched,
     App(window::Id, Message),
-    Opened,
+    Opened(window::Id),
+    InitialScale(window::Id, f32),
+    Rescaled(window::Id, f32),
     Close(window::Id),
     NativeReady,
     NotificationsRetired,
@@ -89,7 +91,7 @@ fn open_with(
         )
     };
     let (id, task) = window::open(identity.apply_to_window_settings(settings));
-    (id, task.map(|_| Event::Opened))
+    (id, task.map(Event::Opened))
 }
 impl Windows {
     pub(crate) fn boot() -> (Self, Task<Event>) {
@@ -323,6 +325,8 @@ impl Windows {
                             }
                             return Task::batch([
                                 task.map(move |message| Event::App(id, message)),
+                                window::scale_factor(id)
+                                    .map(move |scale| Event::InitialScale(id, scale)),
                                 window::size(id).map(move |size| {
                                     Event::App(
                                         id,
@@ -337,7 +341,21 @@ impl Windows {
                 }
                 Task::none()
             }
-            Event::Opened => Task::none(),
+            Event::Opened(id) => {
+                window::scale_factor(id).map(move |scale| Event::InitialScale(id, scale))
+            }
+            Event::InitialScale(id, scale) => {
+                if let Some(app) = self.apps.get_mut(&id) && app.window_scale.is_none() {
+                    app.set_window_scale(scale);
+                }
+                Task::none()
+            }
+            Event::Rescaled(id, scale) => {
+                if let Some(app) = self.apps.get_mut(&id) {
+                    app.set_window_scale(scale);
+                }
+                Task::none()
+            }
             #[cfg(feature = "center")]
             Event::Agent(event) => self.agent_event(event),
             Event::NotificationsRetired => {
@@ -529,6 +547,7 @@ impl Windows {
         let (id, opened) = open();
         // Wayland owns placement; a fresh normal window avoids growing beyond the work area.
         app.window_id = Some(id);
+        app.window_scale = None;
         let task = app
             .update(message)
             .map(move |message| Event::App(id, message));
@@ -769,6 +788,10 @@ impl Windows {
                             instance.subscription(|_| Event::Launched)
                         }),
                     window::close_requests().map(Event::Close),
+                    window::events().filter_map(|(id, event)| match event {
+                        window::Event::Rescaled(scale) => Some(Event::Rescaled(id, scale)),
+                        _ => None,
+                    }),
                     webview_native::notification_subscription().map(|()| Event::NativeReady),
                     webview_native::main_thread_subscription().map(|()| Event::NativeReady),
                     enzui_core::app_runtime::accessibility_wake_subscription(Event::A11y),
@@ -907,6 +930,7 @@ mod tests {
         let (mut windows, a, b) = windows();
         let app = windows.apps.get_mut(&a).expect("welcome window");
         app.window_id = Some(a);
+        app.window_scale = Some(1.5);
         app.browser.saved.search.selected = "google".into();
         app.welcome = Some(crate::welcome::State::new(
             &app.browser.saved,
@@ -930,6 +954,7 @@ mod tests {
             .find(|(id, _)| **id != b)
             .expect("normal browser window");
         assert_eq!(app.window_id, Some(*id));
+        assert_eq!(app.window_scale, None);
         assert!(app.welcome.is_none());
         assert_eq!(app.address, "", "setup finishes on the built-in New Tab page");
         assert_eq!(app.browser.saved.search.selected, "google");

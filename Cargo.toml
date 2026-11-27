@@ -33,7 +33,7 @@ tree_magic_mini = "=3.2.2"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "ico"] }
 iced = { workspace = true, features = ["x11", "wayland", "image-without-codecs"] }
-iced_renderer = { git = "https://github.com/enz1m/enzim-iced.git", rev = "838066d2e7373e87cfb42e62cca5a1dc9625b5f9", default-features = false, features = ["fira-sans"] }
+iced_renderer = { git = "https://github.com/enz1m/enzim-iced.git", rev = "1f49edd6501983d3211b9222e99159904028760d", default-features = false, features = ["fira-sans"] }
 enzui-core = { workspace = true, features = ["accesskit", "portal-dbus", "notification-freedesktop", "activation-native-iced", "desktop-font-portal"] }
 enzui-security = { workspace = true }
 enzui-activity = { workspace = true }
@@ -135,18 +135,18 @@ format_push_string = "warn"
 redundant_type_annotations = "warn"
 
 [workspace.dependencies]
-enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "c5e100b3b5b150630561a0c25800e962a17aacf8" }
-enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "c5e100b3b5b150630561a0c25800e962a17aacf8" }
-enzui-security = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-enzui-activity = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98", default-features = false }
-enzui-clipboard-runtime = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98", default-features = false }
-enzui-services = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-enzui-core = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-enzui-theme = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-enzui-widgets = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-enzui-external-image = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-enzui-agent = { git = "https://github.com/enz1m/enzui.git", rev = "4f951251c8f31a649dd862e274f81260690a9b98" }
-iced = { git = "https://github.com/enz1m/enzim-iced.git", rev = "838066d2e7373e87cfb42e62cca5a1dc9625b5f9", default-features = false, features = [
+enzui-webkit = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "b1eb3e5d49c08d3a8dd321a780bb36af05f0d05b" }
+enzui-webview = { git = "https://github.com/enz1m/enzim-webkit-rs.git", rev = "b1eb3e5d49c08d3a8dd321a780bb36af05f0d05b" }
+enzui-security = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+enzui-activity = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e", default-features = false }
+enzui-clipboard-runtime = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e", default-features = false }
+enzui-services = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+enzui-core = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+enzui-theme = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+enzui-widgets = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+enzui-external-image = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+enzui-agent = { git = "https://github.com/enz1m/enzui.git", rev = "c9251c38bf5f5ee5bfdad5fc60cc2810108ece9e" }
+iced = { git = "https://github.com/enz1m/enzim-iced.git", rev = "1f49edd6501983d3211b9222e99159904028760d", default-features = false, features = [
     "wgpu",
     "tiny-skia",
     "crisp",
@@ -158,7 +158,7 @@ iced = { git = "https://github.com/enz1m/enzim-iced.git", rev = "838066d2e7373e8
     "svg",
     "a11y",
 ] }
-iced_test = { git = "https://github.com/enz1m/enzim-iced.git", rev = "838066d2e7373e87cfb42e62cca5a1dc9625b5f9" }
+iced_test = { git = "https://github.com/enz1m/enzim-iced.git", rev = "1f49edd6501983d3211b9222e99159904028760d" }
 
 # Use the same optimization level for the browser and its dependencies.
 [profile.dev]

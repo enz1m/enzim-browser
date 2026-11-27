@@ -363,6 +363,12 @@ pub(crate) struct NativeMetadata {
     pub(crate) committed_location: Option<String>,
 }
 
+#[derive(Debug)]
+pub(crate) struct NativeSnapshot {
+    pub(crate) frame: enzui_core::media::Rgba8Frame,
+    pub(crate) pixel_scale: f32,
+}
+
 // Coalesced worker notification. No GLib/WebKit work happens while iced holds
 // this value.
 #[derive(Debug)]
@@ -371,7 +377,7 @@ pub(crate) struct NativeUpdate {
     pub(crate) view: enzui_webkit::web::ViewId,
     pub(crate) report: Option<enzui_webkit::ime_bridge::NativeImeReport>,
     pub(crate) metadata: Option<std::sync::Arc<NativeMetadata>>,
-    pub(crate) frame: Option<Result<enzui_core::media::Rgba8Frame, String>>,
+    pub(crate) frame: Option<Result<NativeSnapshot, String>>,
     pub(crate) gpu_frame: Option<enzui_webview::gpu::GpuFrame>,
     pub(crate) tab_reply: Option<(
         enzui_webkit::web::Generation,
@@ -771,7 +777,7 @@ mod real {
     };
     use std::time::Duration;
 
-    use enzui_core::media::{Generation as MediaGeneration, Rgba8Frame};
+    use enzui_core::media::Generation as MediaGeneration;
     use enzui_webkit::clipboard_route::{ClipboardOutcome, HostGesture};
     use enzui_webkit::ffi::profile::ProfileStore;
     use enzui_webkit::ffi::runtime::{HeadlessDisplay, WebSession};
@@ -3152,8 +3158,9 @@ mod real {
             Ok(())
         }
 
-        fn snapshot(&mut self) -> Result<Rgba8Frame, String> {
+        fn snapshot(&mut self) -> Result<super::NativeSnapshot, String> {
             self.seq += 1;
+            let pixel_scale = self.session.view_scale() as f32;
             let frame = self
                 .session
                 .snapshot(
@@ -3161,7 +3168,10 @@ mod real {
                     FrameSeq(self.seq),
                     1_200,
                 )
-                .map(enzui_webview::convert::media_frame)
+                .map(|frame| super::NativeSnapshot {
+                    frame: enzui_webview::convert::media_frame(frame),
+                    pixel_scale,
+                })
                 .map_err(|e| format!("snapshot: {e}"));
             // Readback can complete its own compositor work. Consume it even on
             // failure rather than scheduling repeated captures of an unchanged page.

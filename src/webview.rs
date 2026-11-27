@@ -207,6 +207,7 @@ pub(crate) struct WebViewService {
     // What the last page-IME transition did, for the route to render.
     pub(crate) last_ime: Option<String>,
     pub(crate) page_cursor: Option<String>,
+    snapshot_scale: Option<(MediaGeneration, u64, f32)>,
     pub(crate) gpu_frame: Option<enzui_webview::gpu::GpuFrame>,
     pub(crate) gpu_source: Option<enzui_webview::gpu::GpuFrameSource>,
     // Frames offered while HIDDEN: the quiescence counter. Correct routes hold it
@@ -371,6 +372,7 @@ impl WebViewService {
             last_ime_effect: None,
             last_ime: None,
             page_cursor: None,
+            snapshot_scale: None,
             gpu_frame: None,
             gpu_source: None,
             hidden_offer_attempts: 0,
@@ -1043,7 +1045,9 @@ impl WebViewService {
                         || self
                             .gpu_frame
                             .as_ref()
-                            .is_none_or(|old| old.size() != frame.size());
+                            .is_none_or(|old| {
+                                old.size() != frame.size() || old.pixel_scale() != frame.pixel_scale()
+                            });
                     let source = self
                         .gpu_source
                         .get_or_insert_with(|| enzui_webview::gpu::GpuFrameSource::new(view));
@@ -1062,10 +1066,12 @@ impl WebViewService {
                 visual_changed = true;
                 self.discard_gpu_frame();
                 match frame {
-                    Ok(frame) => {
-                        let seq = frame.seq().0;
-                        match self.sink.deliver(frame) {
+                    Ok(snapshot) => {
+                        let seq = snapshot.frame.seq().0;
+                        let generation = snapshot.frame.generation();
+                        match self.sink.deliver(snapshot.frame) {
                             Delivery::Retained | Delivery::RetainedFreeingOlder { .. } => {
+                                self.snapshot_scale = Some((generation, seq, snapshot.pixel_scale));
                                 self.initial_paint.frame_received();
                                 self.lifecycle.acquire_buffer();
                                 if let Some(ref mut plan) = self.frame_plan {
@@ -1484,6 +1490,12 @@ impl WebViewService {
     #[must_use]
     pub(crate) fn displayed_frame(&self) -> Option<&Rgba8Frame> {
         self.sink.displayed()
+    }
+
+    pub(crate) fn frame_pixel_scale(&self, frame: &Rgba8Frame) -> f32 {
+        self.snapshot_scale
+            .filter(|(generation, seq, _)| *generation == frame.generation() && *seq == frame.seq().0)
+            .map_or(1.0, |(_, _, scale)| scale)
     }
 
     // Whether the view is currently visible (drives whether the route presents

@@ -8,6 +8,7 @@ use crate::{Message, webview, webview_native};
 pub(crate) struct App {
     pub(crate) welcome: Option<crate::welcome::State>,
     pub(crate) window_id: Option<iced::window::Id>,
+    pub(crate) window_scale: Option<f32>,
     /// A window to open: whether it is private, and the address it opens on.
     pub(crate) new_window: Option<(bool, Option<String>)>,
     /// A tab to open a window around, with its page as it is.
@@ -45,6 +46,13 @@ pub(crate) struct App {
 }
 
 impl App {
+    pub(crate) fn set_window_scale(&mut self, scale: f32) {
+        if !scale.is_finite() || scale <= 0.0 || self.window_scale == Some(scale) {
+            return;
+        }
+        self.window_scale = Some(scale);
+    }
+
     pub(crate) fn new(theme: EnzTheme) -> Self {
         Self::with_browser(theme, crate::browser::Browser::load())
     }
@@ -52,6 +60,7 @@ impl App {
         Self {
             welcome: None,
             window_id: None,
+            window_scale: None,
             new_window: None,
             moved_out: None,
             popup_out: None,
@@ -1186,7 +1195,12 @@ mod native_dispatch_tests {
                 crate::webview_native::NativeUpdate {
                     view,
                     page_events: stages.iter().copied().map(PageEvent::Load).collect(),
-                    frame: frame.map(Ok),
+                    frame: frame.map(|frame| {
+                        Ok(crate::webview_native::NativeSnapshot {
+                            frame,
+                            pixel_scale: 1.5,
+                        })
+                    }),
                     gpu_frame: None,
                     metadata: None,
                     report: None,
@@ -1211,6 +1225,8 @@ mod native_dispatch_tests {
         );
         let revision = host.native_visual_revision;
         notify(&mut host, &[], Some(frame(2)));
+        let displayed = host.displayed_frame().expect("presented snapshot");
+        assert_eq!(host.frame_pixel_scale(displayed), 1.5);
         assert!(!host.initial_paint.waiting());
         assert!(host.loading, "subresources may still be loading");
         assert!(
