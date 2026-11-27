@@ -65,8 +65,15 @@ pub(crate) fn reader_page(extracted: &str) -> Option<String> {
             .replace('<', "&lt;")
             .replace('>', "&gt;")
     };
+    let title = escape(title);
+    let html = html
+        .trim_start()
+        .strip_prefix("<h1>")
+        .and_then(|leading| leading.split_once("</h1>"))
+        .filter(|(heading, _)| *heading == title)
+        .map_or(html, |(_, rest)| rest.trim_start());
     Some(format!(
-        "<!doctype html>\n<meta charset=\"utf-8\">\n<meta name=\"referrer\" content=\"no-referrer\">\n<title>{title}</title>\n<style>\n\
+        "<!doctype html>\n<meta charset=\"utf-8\">\n<meta name=\"referrer\" content=\"no-referrer\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<style>\n\
          :root {{ color-scheme: light dark; }}\n\
          body {{ margin: 0 auto; padding: 48px 24px 96px; max-width: 42rem; font: 19px/1.65 Georgia, 'Times New Roman', serif; background: #fbfaf7; color: #1f1f1f; }}\n\
          h1, h2, h3, h4, h5, h6 {{ font-family: system-ui, sans-serif; line-height: 1.25; margin: 1.6em 0 0.5em; }}\n\
@@ -77,8 +84,8 @@ pub(crate) fn reader_page(extracted: &str) -> Option<String> {
          pre, code {{ font: 15px/1.5 ui-monospace, monospace; }}\n\
          pre {{ overflow-x: auto; padding: 12px; background: rgba(127, 127, 127, 0.14); border-radius: 6px; }}\n\
          @media (prefers-color-scheme: dark) {{ body {{ background: #1c1c1e; color: #e6e4df; }} }}\n\
+         @media (max-width: 600px) {{ body {{ padding: 24px 18px 64px; font-size: 18px; }} .title {{ font-size: 1.8em; }} }}\n\
          </style>\n<p class=\"site\">{site}</p>\n<h1 class=\"title\">{title}</h1>\n{html}\n",
-        title = escape(title),
         site = escape(site),
     ))
 }
@@ -669,6 +676,20 @@ mod tests {
         // What the script could not read is no page.
         assert_eq!(reader_page(r#"{"error":"nothing to read"}"#), None);
         assert_eq!(reader_page("not json"), None);
+    }
+
+    #[test]
+    fn reader_only_removes_an_exact_duplicate_leading_heading() {
+        let page = reader_page(
+            r#"{"title":"Fish & Chips","site":"example.org","html":"<h1>Fish &amp; Chips</h1><p>Article.</p>"}"#,
+        ).unwrap();
+        assert_eq!(page.matches("<h1").count(), 1);
+        assert!(page.contains("<h1 class=\"title\">Fish &amp; Chips</h1>\n<p>Article.</p>"));
+
+        let page = reader_page(
+            r#"{"title":"Fish & Chips","site":"example.org","html":"<h1>Fish</h1><p>Article.</p>"}"#,
+        ).unwrap();
+        assert!(page.contains("<h1>Fish</h1>"));
     }
 
     #[test]
