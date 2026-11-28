@@ -40,7 +40,7 @@
       ],
       "sources": [
         {"type": "dir", "path": ".", "skip": [".git", ".flatpak-builder", "target", "work"]},
-        {"type": "archive", "url": "https://github.com/enz1m/enzim-browser/releases/download/v0.1.1/enzim-browser-offline-inputs-0.1.1.tar.xz", "sha256": "7d5fc5eaa02abe320f5ad77636ed468be90a15e6ce294a1e211f95ffdfc7bc16", "strip-components": 0},
+        {"type": "archive", "url": "https://github.com/enz1m/enzim-browser/releases/download/v0.1.3/enzim-browser-offline-inputs-0.1.3.tar.xz", "sha256": "fd27085dd3a5cbe3880596bf79d76b4de1734b981862aac2d8f45a5266ee29f5", "strip-components": 0},
         {
           "type": "file",
           "url": "https://raw.githubusercontent.com/enz1m/enzim-winit/405e1caca89357f6da20eafe7ed8abc686567092/wayland-protocols/xdg-session-management-v1.xml",

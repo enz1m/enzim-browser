@@ -182,7 +182,7 @@ impl Windows {
         {
             use crate::browser::{Command, ContainerCommand, cookies::CookieCommand};
             let private = source.browser.private;
-            let private_scope = source.browser.private_scope.clone();
+            let private_scope = std::rc::Rc::clone(&source.browser.private_scope);
             let related = |app: &App| {
                 app.browser.private == private
                     && (!private || std::rc::Rc::ptr_eq(&app.browser.private_scope, &private_scope))
@@ -576,7 +576,7 @@ impl Windows {
         let preferences = source.browser.saved.clone();
         let parent_private = source.browser.private;
         let source_profiles = source.browser.private_profiles.clone();
-        let private_scope = source.browser.private_scope.clone();
+        let private_scope = std::rc::Rc::clone(&source.browser.private_scope);
         let applied_routes = source.browser.container_routes.clone();
         let (theme, theme_task) = enzui_core::theme_file::integration::ThemeIntegration::boot();
         let mut next = App::with_browser(

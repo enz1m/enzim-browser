@@ -29,6 +29,9 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.3" date="2026-11-28">
+      <description><p>Render pages at the window scale, adapt Reader pages to narrow windows, and preserve launch URLs through setup.</p></description>
+    </release>
     <release version="0.1.1" date="2026-11-23" type="development">
       <description>
         <p>First enzim Apps release. Arrange tabs across the top or in a sidebar, keep browsing separate with profiles and private windows, and manage content blocking and permissions by site.</p>
